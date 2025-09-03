@@ -19,7 +19,7 @@ export class SupabaseStorage {
   async initialize() {
     try {
       if (!config.supabase.url || !config.supabase.serviceKey) {
-        throw new Error('Missing Supabase configuration')
+        throw new Error(`Missing Supabase configuration: URL=${!!config.supabase.url}, KEY=${!!config.supabase.serviceKey}`)
       }
 
       this.client = createClient(
