@@ -1,0 +1,37 @@
+{
+  "name": "cartorio-paulista-scraper",
+  "version": "1.0.0",
+  "description": "Automated Google Business Profile scraper for Cartório Paulista",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "node --test",
+    "install-browsers": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "dotenv": "^16.3.1",
+    "crypto": "^1.0.1",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "scraper",
+    "google-business-profile",
+    "playwright",
+    "automation",
+    "reviews"
+  ],
+  "author": "Cartório Paulista",
+  "license": "MIT"
+}

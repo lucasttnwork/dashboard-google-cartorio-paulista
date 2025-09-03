@@ -1,0 +1,30 @@
+{
+  "name": "dashboard-google-cartorio-paulista",
+  "version": "1.0.0",
+  "description": "Dashboard para monitoramento de reviews do Google Business Profile via DataForSEO",
+  "main": "test-dataforseo.js",
+  "scripts": {
+    "test": "node test-dataforseo.js",
+    "test:dataforseo": "node test-dataforseo.js",
+    "start": "echo 'Use npm run test para testar a integração'"
+  },
+  "dependencies": {
+    "@radix-ui/react-switch": "^1.2.6",
+    "@supabase/supabase-js": "^2.56.1",
+    "axios": "^1.6.0",
+    "sonner": "^2.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "keywords": [
+    "supabase",
+    "dataforseo",
+    "google-business-profile",
+    "reviews",
+    "dashboard",
+    "cartorio"
+  ],
+  "author": "Cartório Paulista",
+  "license": "MIT"
+}

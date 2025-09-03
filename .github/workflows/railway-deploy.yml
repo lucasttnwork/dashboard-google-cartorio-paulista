@@ -1,0 +1,64 @@
+name: Railway Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  deploy-frontend:
+    name: Deploy Frontend to Railway
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy Frontend
+        uses: railway-deploy@v1
+        with:
+          service: 'cartorio-paulista-frontend'
+          token: ${{ secrets.RAILWAY_TOKEN }}
+          path: dashboard-frontend
+          environment: production
+
+  deploy-scraper:
+    name: Deploy Scraper to Railway
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy Scraper
+        uses: railway-deploy@v1
+        with:
+          service: 'cartorio-paulista-scraper'
+          token: ${{ secrets.RAILWAY_TOKEN }}
+          path: scraper
+          environment: production
+
+  health-check:
+    name: Post-Deploy Health Check
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-scraper]
+    if: always()
+    
+    steps:
+      - name: ⏳ Wait for services to start
+        run: sleep 60
+
+      - name: 🏥 Check Frontend Health
+        run: |
+          curl -f ${{ secrets.FRONTEND_URL }}/api/health || exit 1
+        continue-on-error: true
+
+      - name: 🏥 Check Scraper Health
+        run: |
+          curl -f ${{ secrets.SCRAPER_URL }}/health || exit 1
+        continue-on-error: true
+
+      - name: 📊 Check Scraper Status
+        run: |
+          curl -f ${{ secrets.SCRAPER_URL }}/api/status || exit 1
+        continue-on-error: true

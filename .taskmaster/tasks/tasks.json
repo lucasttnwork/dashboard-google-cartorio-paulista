@@ -1,0 +1,356 @@
+{
+  "version": "0.25.1",
+  "projectName": "Dashboard Cartório Paulista",
+  "tasks": {
+    "1": {
+      "id": 1,
+      "title": "FASE 1: Infraestrutura Core - Setup e Configuração",
+      "description": "Configurar toda a infraestrutura básica do projeto incluindo Next.js, Supabase, autenticação e estrutura base",
+      "details": "- Setup Next.js 15 com TypeScript e Tailwind CSS\n- Configuração Supabase com PostgreSQL\n- Implementação sistema de autenticação\n- Estrutura base de componentes e páginas\n- Configuração CI/CD básico",
+      "status": "in-progress",
+      "priority": "high",
+      "dependencies": [],
+      "subtasks": {
+        "1.1": {
+          "id": "1.1",
+          "title": "Configurar projeto Next.js 15 com TypeScript",
+          "description": "Setup inicial do projeto com todas as dependências necessárias",
+          "details": "- Next.js 15 com App Router\n- TypeScript strict mode\n- Tailwind CSS v4\n- shadcn/ui + Radix UI\n- ESLint e Prettier configurados",
+          "status": "completed",
+          "dependencies": []
+        },
+        "1.2": {
+          "id": "1.2",
+          "title": "Setup Supabase com PostgreSQL e RLS",
+          "description": "Configurar banco de dados e segurança",
+          "details": "- Criar projeto no Supabase\n- Configurar tabelas necessárias\n- Implementar Row Level Security\n- Configurar Edge Functions\n- Testar conexão e permissões",
+          "status": "pending",
+          "dependencies": ["1.1"]
+        },
+        "1.3": {
+          "id": "1.3",
+          "title": "Implementar sistema de autenticação",
+          "description": "Sistema completo de login e controle de acesso",
+          "details": "- Supabase Auth setup\n- Páginas de login/registro\n- Proteção de rotas\n- Controle de permissões\n- Persistência de sessão",
+          "status": "pending",
+          "dependencies": ["1.2"]
+        },
+        "1.4": {
+          "id": "1.4",
+          "title": "Estrutura base do dashboard (App Shell)",
+          "description": "Implementar layout principal e navegação",
+          "details": "- Sidebar de navegação\n- Topbar com command menu\n- Sistema de temas\n- Layout responsivo\n- Componentes base (cards, buttons)",
+          "status": "completed",
+          "dependencies": ["1.1"]
+        },
+        "1.5": {
+          "id": "1.5",
+          "title": "Configurar Railway para deploy",
+          "description": "Preparar infraestrutura de produção",
+          "details": "- Conta Railway configurada\n- Dockerfile otimizado\n- Variáveis de ambiente\n- Domínio configurado\n- Health checks implementados",
+          "status": "pending",
+          "dependencies": ["1.2"]
+        }
+      }
+    },
+    "2": {
+      "id": 2,
+      "title": "FASE 2: Sistema de Scraping Automático",
+      "description": "Implementar coleta automática de dados do Google Business Profile",
+      "details": "- Sistema de scraping com Playwright\n- Agendamento automático (cron)\n- Processamento e limpeza de dados\n- Armazenamento no Supabase\n- Tratamento de erros e retries",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": ["1"],
+      "subtasks": {
+        "2.1": {
+          "id": "2.1",
+          "title": "Configurar Playwright para scraping GBP",
+          "description": "Setup da ferramenta de automação web",
+          "details": "- Instalar e configurar Playwright\n- Criar scripts de scraping para GBP\n- Implementar navegação headless\n- Capturar dados de avaliações\n- Tratamento de CAPTCHA e rate limiting",
+          "status": "pending",
+          "dependencies": ["1.1"]
+        },
+        "2.2": {
+          "id": "2.2",
+          "title": "Implementar coleta de avaliações",
+          "description": "Sistema completo de extração de dados",
+          "details": "- Parsing de ratings (1-5 estrelas)\n- Extração de comentários\n- Captura de datas e nomes\n- Identificação de fonte (Google)\n- Estruturação dos dados coletados",
+          "status": "pending",
+          "dependencies": ["2.1"]
+        },
+        "2.3": {
+          "id": "2.3",
+          "title": "Sistema de deduping e validação",
+          "description": "Evitar duplicatas e validar integridade",
+          "details": "- Algoritmo de deduplicação\n- Validação de dados\n- Tratamento de dados inconsistentes\n- Logs de processamento\n- Métricas de qualidade",
+          "status": "pending",
+          "dependencies": ["2.2"]
+        },
+        "2.4": {
+          "id": "2.4",
+          "title": "Análise de texto para menções de colaboradores",
+          "description": "Processamento NLP para identificar colaboradores",
+          "details": "- Regex patterns para nomes\n- Fuzzy matching para variações\n- Categorização de menções positivas/negativas\n- Estatísticas por colaborador\n- Cache de resultados",
+          "status": "pending",
+          "dependencies": ["2.3"]
+        },
+        "2.5": {
+          "id": "2.5",
+          "title": "Agendamento automático (cron job)",
+          "description": "Sistema de execução programada",
+          "details": "- Configuração de cron a cada hora\n- Monitoramento de execuções\n- Sistema de alertas para falhas\n- Logs detalhados\n- Dashboard de status do scraping",
+          "status": "pending",
+          "dependencies": ["2.4"]
+        }
+      }
+    },
+    "3": {
+      "id": 3,
+      "title": "FASE 3: Dashboard Analítico - Funcionalidades Core",
+      "description": "Implementar todas as páginas e funcionalidades do dashboard",
+      "details": "- Dashboard principal com KPIs\n- Página de avaliações com filtros\n- Sistema de colaboradores\n- Analytics e gráficos\n- Export de dados",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": ["1"],
+      "subtasks": {
+        "3.1": {
+          "id": "3.1",
+          "title": "Dashboard principal com KPIs (USANDO MOCKS)",
+          "description": "Página inicial com métricas principais - ainda usando dados mock",
+          "details": "- Cards KPI (total avaliações, rating médio, 5★, colaboradores)\n- Gráfico de evolução temporal\n- Ranking de colaboradores\n- Filtros de período\n- Layout responsivo\n- ⚠️ PENDENTE: Conectar dados reais do Supabase",
+          "status": "pending",
+          "dependencies": ["1.4"]
+        },
+        "3.2": {
+          "id": "3.2",
+          "title": "Página Reviews com filtros avançados (USANDO MOCKS)",
+          "description": "Sistema completo de visualização de avaliações - ainda usando dados mock",
+          "details": "- Tabela com paginação e busca\n- Filtros por rating, período, colaborador, fonte\n- Modal de filtros avançados\n- Export CSV funcional\n- Estados de loading/erro\n- ⚠️ PENDENTE: Conectar dados reais do Supabase",
+          "status": "pending",
+          "dependencies": ["1.4"]
+        },
+        "3.3": {
+          "id": "3.3",
+          "title": "Sistema de colaboradores e ranking (USANDO MOCKS)",
+          "description": "Análise detalhada por colaborador - ainda usando dados mock",
+          "details": "- Ranking por menções\n- Métricas individuais\n- Perfis detalhados\n- Comparativos\n- Histórico de performance\n- ⚠️ PENDENTE: Conectar dados reais do Supabase",
+          "status": "pending",
+          "dependencies": ["1.4"]
+        },
+        "3.4": {
+          "id": "3.4",
+          "title": "Página Analytics com gráficos avançados",
+          "description": "Visualizações analíticas completas",
+          "details": "- Gráficos interativos (Recharts)\n- Métricas avançadas\n- Drill-down capabilities\n- Comparativos temporais\n- Export de gráficos",
+          "status": "pending",
+          "dependencies": ["3.1"]
+        },
+        "3.5": {
+          "id": "3.5",
+          "title": "Página Trends e projeções",
+          "description": "Análise temporal e tendências",
+          "details": "- Gráficos de tendência\n- Projeções futuras\n- Análise sazonal\n- Comparativos por período\n- Alertas de tendência",
+          "status": "pending",
+          "dependencies": ["3.4"]
+        }
+      }
+    },
+    "4": {
+      "id": 4,
+      "title": "FASE 4: Qualidade e Performance",
+      "description": "Otimização, testes e garantia de qualidade",
+      "details": "- Testes automatizados\n- Otimização de performance\n- Acessibilidade WCAG AA\n- Error boundaries\n- Documentação técnica",
+      "status": "pending",
+      "priority": "medium",
+      "dependencies": ["3"],
+      "subtasks": {
+        "4.1": {
+          "id": "4.1",
+          "title": "Implementar testes unitários (React Testing Library)",
+          "description": "Cobertura de testes para componentes críticos",
+          "details": "- Testes para componentes UI\n- Testes para hooks customizados\n- Testes para utilitários\n- Mock do Supabase\n- Configuração Vitest",
+          "status": "pending",
+          "dependencies": ["3.1"]
+        },
+        "4.2": {
+          "id": "4.2",
+          "title": "Testes E2E com Playwright",
+          "description": "Testes de ponta a ponta",
+          "details": "- Fluxos críticos automatizados\n- Testes de scraping\n- Validação de filtros\n- Testes de responsividade\n- CI/CD integration",
+          "status": "pending",
+          "dependencies": ["4.1"]
+        },
+        "4.3": {
+          "id": "4.3",
+          "title": "Otimização de performance",
+          "description": "Melhorar Core Web Vitals e experiência",
+          "details": "- Lazy loading\n- Code splitting\n- Image optimization\n- Bundle analysis\n- Caching strategies",
+          "status": "pending",
+          "dependencies": ["3.5"]
+        },
+        "4.4": {
+          "id": "4.4",
+          "title": "Acessibilidade WCAG AA",
+          "description": "Garantir conformidade com padrões de acessibilidade",
+          "details": "- Screen reader support\n- Navegação por teclado\n- Contraste de cores\n- Focus indicators\n- ARIA labels",
+          "status": "completed",
+          "dependencies": ["1.4"]
+        },
+        "4.5": {
+          "id": "4.5",
+          "title": "Documentação técnica completa",
+          "description": "Documentação para desenvolvimento e manutenção",
+          "details": "- README detalhado\n- API documentation\n- Setup instructions\n- Troubleshooting guide\n- Contributing guidelines",
+          "status": "pending",
+          "dependencies": ["4.4"]
+        }
+      }
+    },
+    "5": {
+      "id": 5,
+      "title": "FASE 5: Produção e Monitoramento",
+      "description": "Deploy em produção e sistema de monitoramento",
+      "details": "- Configuração Railway completa\n- CI/CD pipeline\n- Monitoring 24/7\n- Backup automático\n- Alertas e notificações",
+      "status": "pending",
+      "priority": "high",
+      "dependencies": ["4"],
+      "subtasks": {
+        "5.1": {
+          "id": "5.1",
+          "title": "Deploy completo na Railway",
+          "description": "Configuração de produção otimizada",
+          "details": "- Dockerfile otimizado\n- Environment variables\n- Database migrations\n- Static assets CDN\n- SSL/HTTPS configurado",
+          "status": "pending",
+          "dependencies": ["1.5"]
+        },
+        "5.2": {
+          "id": "5.2",
+          "title": "CI/CD com GitHub Actions",
+          "description": "Pipeline automatizado de deploy",
+          "details": "- Build automatizado\n- Testes em PR\n- Deploy automático\n- Rollback procedures\n- Environment staging/production",
+          "status": "pending",
+          "dependencies": ["5.1"]
+        },
+        "5.3": {
+          "id": "5.3",
+          "title": "Sistema de monitoramento e alertas",
+          "description": "Observabilidade completa do sistema",
+          "details": "- Application monitoring\n- Error tracking\n- Performance metrics\n- Scraping health checks\n- Alertas automáticos",
+          "status": "pending",
+          "dependencies": ["5.2"]
+        },
+        "5.4": {
+          "id": "5.4",
+          "title": "Backup e recuperação de dados",
+          "description": "Sistema de backup automático",
+          "details": "- Backup diário do banco\n- Estratégia de retenção\n- Testes de recuperação\n- Disaster recovery plan\n- Backup de configurações",
+          "status": "pending",
+          "dependencies": ["5.1"]
+        },
+        "5.5": {
+          "id": "5.5",
+          "title": "Sistema de notificações e alertas",
+          "description": "Comunicação automática de eventos",
+          "details": "- Alertas de falha no scraping\n- Notificações de métricas críticas\n- Relatórios automáticos\n- Dashboard de status\n- Escalation procedures",
+          "status": "pending",
+          "dependencies": ["5.3"]
+        }
+      }
+    },
+    "6": {
+      "id": 6,
+      "title": "FASE 6: Otimização e Manutenção",
+      "description": "Melhorias contínuas e manutenção do sistema",
+      "details": "- Otimizações baseadas em uso real\n- Melhorias na UX\n- Novos recursos solicitados\n- Manutenção preventiva\n- Atualizações de segurança",
+      "status": "pending",
+      "priority": "low",
+      "dependencies": ["5"],
+      "subtasks": {
+        "6.1": {
+          "id": "6.1",
+          "title": "Análise de uso e otimização",
+          "description": "Melhorias baseadas em dados reais",
+          "details": "- Análise de métricas de uso\n- Identificação de gargalos\n- Otimizações de performance\n- Melhorias na UX\n- Novos recursos prioritários",
+          "status": "pending",
+          "dependencies": ["5.5"]
+        },
+        "6.2": {
+          "id": "6.2",
+          "title": "Atualizações de segurança",
+          "description": "Manutenção de segurança do sistema",
+          "details": "- Atualização de dependências\n- Patches de segurança\n- Auditorias de código\n- Configurações de segurança\n- Monitoramento de vulnerabilidades",
+          "status": "pending",
+          "dependencies": ["5.5"]
+        },
+        "6.3": {
+          "id": "6.3",
+          "title": "Recursos avançados (opcional)",
+          "description": "Funcionalidades adicionais conforme demanda",
+          "details": "- Dashboard personalizado por usuário\n- API pública para integrações\n- Mobile app companion\n- Análise de sentimento avançada\n- Relatórios customizáveis",
+          "status": "pending",
+          "dependencies": ["6.1"]
+        }
+      }
+    },
+    "7": {
+      "id": 7,
+      "title": "CORREÇÕES CRÍTICAS: Conectar Dados Reais",
+      "description": "Implementar conexões reais com Supabase e remover dependência de mocks",
+      "details": "- Criar RPCs no Supabase\n- Configurar variáveis de ambiente\n- Conectar frontend aos dados reais\n- Implementar scraper Playwright/node-cron\n- Configurar deploy Railway completo",
+      "status": "completed",
+      "priority": "critical",
+      "dependencies": [],
+      "subtasks": {
+        "7.1": {
+          "id": "7.1",
+          "title": "Criar RPCs no Supabase",
+          "description": "Implementar stored procedures para as consultas do frontend",
+          "details": "- get_reviews_stats: estatísticas gerais\n- get_recent_reviews(limit_param): avaliações recentes\n- get_monthly_trends: dados para gráficos temporais\n- get_collaborators_stats: estatísticas de colaboradores\n- Aplicar RLS e políticas de segurança\n- ✅ IMPLEMENTADO: Todas as RPCs criadas com dados de exemplo",
+          "status": "completed",
+          "dependencies": ["1.2"]
+        },
+        "7.2": {
+          "id": "7.2",
+          "title": "Conectar frontend ao Supabase",
+          "description": "Substituir mocks por queries reais do Supabase",
+          "details": "- Criar .env.local com credenciais reais\n- Atualizar adapters para usar RPCs\n- Implementar error handling robusto\n- Manter fallbacks para desenvolvimento\n- Testar todas as páginas com dados reais\n- ✅ IMPLEMENTADO: Frontend conectado com fallbacks inteligentes",
+          "status": "completed",
+          "dependencies": ["7.1"]
+        },
+        "7.3": {
+          "id": "7.3",
+          "title": "Implementar scraper Playwright/node-cron",
+          "description": "Criar sistema completo de coleta automática conforme auto-scrape.md",
+          "details": "- Estrutura de diretórios: scraper/ com subpastas\n- Classes: GBPScraper, ReviewProcessor, SupabaseStorage, CronScheduler, MonitoringDashboard\n- Dependências: playwright, node-cron, winston, @supabase/supabase-js\n- Cron job de hora em hora\n- Sistema de monitoramento e logs\n- Deduplicação inteligente\n- ✅ IMPLEMENTADO: Sistema completo com dashboard de monitoramento",
+          "status": "completed",
+          "dependencies": ["7.2"]
+        },
+        "7.4": {
+          "id": "7.4",
+          "title": "Dockerfiles e deploy Railway",
+          "description": "Configurar deploy completo com Web e Worker services",
+          "details": "- Dockerfile para Next.js frontend\n- Dockerfile para scraper worker\n- Configurar dois serviços Railway: Web + Worker\n- Health checks e monitoramento\n- Variáveis de ambiente para produção\n- railway.json ou Nixpacks config\n- ✅ IMPLEMENTADO: Dockerfiles otimizados + docker-compose + railway.json",
+          "status": "completed",
+          "dependencies": ["7.3"]
+        },
+        "7.5": {
+          "id": "7.5",
+          "title": "CI/CD básico com GitHub Actions",
+          "description": "Pipeline automatizado de build, lint e deploy",
+          "details": "- Workflow de build para frontend\n- Linting e verificações de qualidade\n- Deploy automático na Railway\n- Testes de smoke básicos\n- Notificações de status\n- ✅ IMPLEMENTADO: CI/CD completo com health checks",
+          "status": "completed",
+          "dependencies": ["7.4"]
+        }
+      }
+    }
+  },
+  "tags": {
+    "master": {
+      "name": "master",
+      "description": "Main development branch for Cartório Paulista Dashboard",
+      "created": "2025-01-09T12:24:00.000Z",
+      "lastModified": "2025-01-09T12:57:00.000Z"
+    }
+  },
+  "currentTag": "master"
+}

@@ -1,0 +1,340 @@
+# 📋 PRODUCT REQUIREMENTS DOCUMENT (PRD)
+## Dashboard de Monitoramento - Cartório Paulista
+
+### 🎯 **VISÃO GERAL DO PRODUTO**
+
+O Dashboard do Cartório Paulista é uma plataforma web completa para monitoramento e análise de avaliações do Google Business Profile, com foco em métricas de performance, menções de colaboradores e automação de coleta de dados.
+
+### 🎯 **OBJETIVOS PRINCIPAIS**
+
+1. **Monitoramento em Tempo Real**: Acompanhar avaliações do Google Business Profile 24/7
+2. **Análise de Performance**: Métricas detalhadas sobre satisfação do cliente e colaboradores
+3. **Automação de Coleta**: Sistema automático de scraping de dados a cada hora
+4. **Interface Intuitiva**: Dashboard responsivo com filtros avançados e visualizações
+5. **Deploy na Railway**: Infraestrutura escalável e confiável
+
+---
+
+## 📊 **FUNCIONALIDADES CORE**
+
+### 1. **COLETA AUTOMÁTICA DE DADOS**
+
+#### **1.1 Sistema de Scraping Automático**
+- **Frequência**: A cada hora
+- **Fonte**: Google Business Profile do Cartório Paulista
+- **Dados Coletados**:
+  - Avaliações (rating 1-5 estrelas)
+  - Comentários dos clientes
+  - Data/hora da avaliação
+  - Nome do avaliador
+  - Fonte da avaliação (Google, Facebook, etc.)
+- **Armazenamento**: Supabase PostgreSQL
+- **Backup**: Dados históricos preservados
+
+#### **1.2 Processamento de Dados**
+- **Deduping**: Evitar duplicatas de avaliações
+- **Classificação**: Categorização automática por sentimento
+- **Análise de Texto**: Extração de menções a colaboradores
+- **Validação**: Verificação de integridade dos dados
+
+### 2. **DASHBOARD ANALÍTICO**
+
+#### **2.1 Página Principal (Dashboard)**
+- **KPIs Principais**:
+  - Total de avaliações
+  - Rating médio
+  - Percentual de avaliações 5★
+  - Colaboradores ativos
+- **Gráfico de Evolução**: Avaliações e rating médio por período
+- **Ranking de Colaboradores**: Top colaboradores mais mencionados
+
+#### **2.2 Página de Avaliações (Reviews)**
+- **Lista Completa**: Todas as avaliações com filtros avançados
+- **Filtros Disponíveis**:
+  - Por período (7d, 30d, 90d, custom)
+  - Por rating (1-5 estrelas)
+  - Por colaborador mencionado
+  - Por fonte (Google, Facebook, Instagram, Website)
+- **Funcionalidades**:
+  - Busca em tempo real
+  - Ordenação por data/rating
+  - Export CSV com filtros aplicados
+  - Visualização detalhada de comentários
+
+#### **2.3 Página de Colaboradores**
+- **Métricas Individuais**:
+  - Número de menções
+  - Rating médio das avaliações
+  - Distribuição de ratings
+- **Ranking Geral**: Top 10 colaboradores mais mencionados
+- **Performance por Pessoa**: Análise individual detalhada
+
+#### **2.4 Página Analytics**
+- **Métricas Avançadas**:
+  - Tendência de rating mensal
+  - Avaliações por dia da semana
+  - Tempo médio de resposta
+  - Satisfação geral por período
+- **Gráficos Interativos**: Charts com drill-down
+- **Comparativos**: Análise de performance vs período anterior
+
+#### **2.5 Página Trends (Tendências)**
+- **Análise Temporal**: Evolução de métricas ao longo do tempo
+- **Projeções**: Tendências baseadas em dados históricos
+- **Comparativos**: Performance por período (semanal/mensal/anual)
+
+#### **2.6 Página Reports (Relatórios)**
+- **Geração Automática**: Relatórios mensais/semanal
+- **Templates**: Relatórios customizáveis por período
+- **Export**: PDF e Excel com gráficos incluídos
+- **Agendamento**: Envio automático por email
+
+### 3. **INTERFACE E EXPERIÊNCIA**
+
+#### **3.1 Design System**
+- **Framework**: Next.js 15 + TypeScript
+- **UI Library**: shadcn/ui + Radix UI + Tailwind CSS v4
+- **Tema**: Light/Dark/System com persistência
+- **Responsividade**: Mobile-first design
+
+#### **3.2 Navegação**
+- **Sidebar**: Navegação lateral colapsível
+- **Command Menu**: Busca global (Ctrl+K)
+- **Breadcrumbs**: Navegação contextual
+- **Estados Visuais**: Loading, error, empty states
+
+#### **3.3 Interações**
+- **Filtros Avançados**: Modal com múltiplas opções
+- **Busca em Tempo Real**: Debounced search
+- **Feedback Visual**: Toasts, loading states, confirmações
+- **Acessibilidade**: WCAG AA compliance
+
+### 4. **INFRAESTRUTURA E DEPLOY**
+
+#### **4.1 Backend (Supabase)**
+- **Database**: PostgreSQL com Row Level Security
+- **Edge Functions**: Processamento serverless
+- **Real-time**: Atualizações em tempo real via WebSocket
+- **API**: RESTful API com autenticação
+
+#### **4.2 Frontend (Railway)**
+- **Runtime**: Node.js 20+
+- **Build**: Next.js production build
+- **Static Assets**: CDN otimizado
+- **Monitoring**: Logs e métricas de performance
+
+#### **4.3 Sistema de Scraping**
+- **Tecnologia**: Node.js + Puppeteer/Playwright
+- **Agendamento**: Cron jobs a cada hora
+- **Error Handling**: Retry logic e alertas
+- **Rate Limiting**: Controle de frequência para evitar blocks
+
+---
+
+## 🔧 **TECNOLOGIAS E ARQUITETURA**
+
+### **Frontend Stack**
+- **Framework**: Next.js 15 (App Router)
+- **Linguagem**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **UI Components**: shadcn/ui + Radix UI
+- **State Management**: Zustand + TanStack Query
+- **Charts**: Recharts
+- **Tables**: TanStack Table
+- **Forms**: React Hook Form + Zod
+
+### **Backend Stack**
+- **Platform**: Supabase
+- **Database**: PostgreSQL
+- **Edge Functions**: Deno/TypeScript
+- **Authentication**: Supabase Auth
+- **Real-time**: Supabase Realtime
+
+### **Scraping Stack**
+- **Runtime**: Node.js
+- **Browser Automation**: Playwright
+- **Scheduling**: Cron/Node-cron
+- **Data Processing**: Custom scripts
+- **Storage**: Supabase PostgreSQL
+
+### **Deploy Stack**
+- **Platform**: Railway
+- **Container**: Docker
+- **CI/CD**: GitHub Actions
+- **Monitoring**: Railway logs + custom dashboards
+- **Domain**: HTTPS configurado
+
+---
+
+## 📈 **MÉTRICAS DE SUCESSO**
+
+### **Funcionais**
+- ✅ 99.9% uptime do scraping automático
+- ✅ < 5 minutos de latência na atualização de dados
+- ✅ 100% das avaliações do GBP coletadas
+- ✅ Filtros aplicados em < 2 segundos
+- ✅ Export CSV em < 10 segundos
+
+### **Performance**
+- ✅ Core Web Vitals: Good (CWV)
+- ✅ First Contentful Paint: < 1.5s
+- ✅ Largest Contentful Paint: < 2.5s
+- ✅ Cumulative Layout Shift: < 0.1
+- ✅ Bundle Size: < 200KB gzipped
+
+### **Usabilidade**
+- ✅ Task Completion Rate: > 95%
+- ✅ User Satisfaction Score: > 4.5/5
+- ✅ Error Rate: < 1%
+- ✅ Mobile Responsiveness: 100%
+
+---
+
+## 🚀 **ROADMAP DE IMPLEMENTAÇÃO**
+
+### **Fase 1: Core Infrastructure (2 semanas)**
+1. Setup do projeto Next.js + Supabase
+2. Configuração do banco de dados
+3. Implementação da autenticação
+4. Estrutura base do dashboard
+5. Sistema de scraping básico
+
+### **Fase 2: Core Features (3 semanas)**
+1. Dashboard principal com KPIs
+2. Página de avaliações com filtros
+3. Sistema de colaboradores
+4. Analytics básicos
+5. Export de dados
+
+### **Fase 3: Advanced Features (2 semanas)**
+1. Scraping automático com cron
+2. Real-time updates
+3. Relatórios avançados
+4. Notificações por email
+5. Otimização de performance
+
+### **Fase 4: Production Ready (1 semana)**
+1. Configuração Railway
+2. CI/CD pipeline
+3. Monitoring e alertas
+4. Documentação completa
+5. Testes automatizados
+
+---
+
+## 🎯 **CRITÉRIOS DE ACEITAÇÃO**
+
+### **Funcionalidades Mínimas**
+- [ ] Dashboard acessível e responsivo
+- [ ] Coleta automática de avaliações GBP
+- [ ] Filtros avançados funcionando
+- [ ] Export CSV com dados filtrados
+- [ ] Métricas de colaboradores atualizadas
+- [ ] Sistema rodando na Railway
+
+### **Qualidade de Código**
+- [ ] TypeScript strict mode
+- [ ] ESLint sem warnings
+- [ ] Testes unitários (60% cobertura)
+- [ ] Componentes reutilizáveis
+- [ ] Documentação técnica completa
+
+### **Performance**
+- [ ] Lighthouse Score > 90
+- [ ] Bundle size otimizado
+- [ ] Lazy loading implementado
+- [ ] Cache inteligente configurado
+
+---
+
+## 🔒 **SEGURANÇA E CONFIABILIDADE**
+
+### **Segurança**
+- Autenticação obrigatória
+- Row Level Security no Supabase
+- HTTPS em produção
+- Sanitização de inputs
+- Rate limiting nas APIs
+
+### **Confiabilidade**
+- Backup automático diário
+- Monitoramento 24/7
+- Alertas para falhas
+- Retry logic implementado
+- Graceful degradation
+
+---
+
+## 📚 **DOCUMENTAÇÃO E SUPORTE**
+
+### **Documentação Técnica**
+- README completo
+- API documentation
+- Setup instructions
+- Troubleshooting guide
+- Contributing guidelines
+
+### **Suporte ao Usuário**
+- Interface intuitiva
+- Tooltips contextuais
+- Help integrado
+- FAQ atualizada
+- Suporte por email
+
+---
+
+**Data de Criação**: $(date)
+**Versão**: 1.0.0
+**Status**: ✅ Aprovado para Implementação
+**Responsável**: Senior Frontend/UI Engineer
+
+---
+
+## 📋 **TAREFAS DE IMPLEMENTAÇÃO DETALHADAS**
+
+### **INFRAESTRUTURA**
+1. Configurar projeto Next.js 15 com TypeScript
+2. Setup Supabase com PostgreSQL
+3. Implementar autenticação e RLS
+4. Configurar Railway para deploy
+5. Setup CI/CD com GitHub Actions
+
+### **FRONTEND CORE**
+1. Implementar App Shell com sidebar e navegação
+2. Criar sistema de temas (Light/Dark/System)
+3. Implementar Command Menu (Ctrl+K)
+4. Criar componentes base (KPI cards, charts, tables)
+5. Implementar filtros avançados
+
+### **SCRAPING SYSTEM**
+1. Configurar Playwright para scraping GBP
+2. Implementar coleta automática de avaliações
+3. Criar sistema de deduping
+4. Implementar processamento de texto para menções
+5. Configurar cron job de hora em hora
+
+### **PÁGINAS E FUNCIONALIDADES**
+1. Dashboard principal com métricas
+2. Página Reviews com filtros e export
+3. Página Colaboradores com ranking
+4. Página Analytics com gráficos avançados
+5. Página Trends com análise temporal
+6. Página Reports com geração automática
+
+### **QUALIDADE E PERFORMANCE**
+1. Implementar testes unitários e E2E
+2. Otimizar Core Web Vitals
+3. Configurar lazy loading e code splitting
+4. Implementar error boundaries
+5. Adicionar acessibilidade WCAG AA
+
+### **DEPLOY E MONITORAMENTO**
+1. Configurar Railway para produção
+2. Implementar monitoring e alertas
+3. Configurar backup automático
+4. Documentar processo de deploy
+5. Criar runbooks de operação
+
+---
+
+**Este PRD define completamente o escopo e requisitos para o Dashboard do Cartório Paulista, garantindo uma implementação robusta, escalável e user-friendly.**
