@@ -1,0 +1,45 @@
+# Variáveis de Ambiente para Railway
+
+## SERVIÇO 1: dashboard-frontend
+
+```bash
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://bugpetfkyoraidyxmzxu.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1Z3BldGZreW9yYWlkeXhtenh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MDM1NjAsImV4cCI6MjA3MTk3OTU2MH0.9qYGEjUf7fz4_KNAcvSZfaiYLlGZllSYxlvNhXmGGWU
+
+# App Configuration  
+NEXT_PUBLIC_APP_NAME=Dashboard Google - Cartório Paulista
+NEXT_PUBLIC_APP_VERSION=1.0.0
+
+# Environment
+NODE_ENV=production
+```
+
+## SERVIÇO 2: scraper
+
+```bash
+# Supabase Configuration
+SUPABASE_URL=https://bugpetfkyoraidyxmzxu.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1Z3BldGZreW9yYWlkeXhtenh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MDM1NjAsImV4cCI6MjA3MTk3OTU2MH0.9qYGEjUf7fz4_KNAcvSZfaiYLlGZllSYxlvNhXmGGWU
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1Z3BldGZreW9yYWlkeXhtenh1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjQwMzU2MCwiZXhwIjoyMDcxOTc5NTYwfQ.Dq4ELKwvzQ_NdFHUYSQKyLmJHJjXEv2EB-Y6tJGWfOM
+
+# Google Business Profile Configuration
+GBP_LOCATION_ID=cartorio-paulista-location
+
+# Scraping Configuration
+PLAYWRIGHT_HEADLESS=true
+SCRAPING_DELAY_MS=2000
+MAX_RETRIES=3
+BATCH_SIZE=50
+
+# Monitoring Configuration
+COLLECTION_FREQUENCY_HOURS=6
+ENABLE_WEBHOOKS=false
+
+# Logging
+LOG_LEVEL=info
+LOG_FILE=logs/scraper.log
+
+# Environment
+NODE_ENV=production
+```
