@@ -1,5 +1,5 @@
 # Multi-stage build for Node.js scraper application
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 
 # Install system dependencies for Chromium
 RUN apk add --no-cache \
@@ -20,7 +20,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Production image
 FROM base AS runner
