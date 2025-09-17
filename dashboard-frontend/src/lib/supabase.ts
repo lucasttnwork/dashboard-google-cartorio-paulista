@@ -58,12 +58,12 @@ export const api = {
       ]
     }
     try {
-      const { data, error } = await supabase.rpc('get_reviews_stats')
+      const { data, error } = await supabase.rpc('get_reviews_stats', { p_location_id: 'cartorio-paulista-location' })
       if (error) throw error
       return data || []
     } catch {
       // fallback básico
-      const { data } = await supabase.from('reviews').select('rating').limit(1000)
+      const { data } = await supabase.from('reviews').select('rating').eq('location_id','cartorio-paulista-location').limit(1000)
       const total = data?.length || 0
       const avg = total ? (data!.reduce((s: number, r: { rating?: number }) => s + (r.rating || 0), 0) / total) : 0
       return [
@@ -96,13 +96,14 @@ export const api = {
       }))
     }
     try {
-      const { data, error } = await supabase.rpc('get_recent_reviews', { limit_param: limit })
+      const { data, error } = await supabase.rpc('get_recent_reviews', { limit_param: limit, p_location_id: 'cartorio-paulista-location' })
       if (error) throw error
       return data || []
     } catch {
       const { data } = await supabase
         .from('reviews')
         .select('*')
+        .eq('location_id','cartorio-paulista-location')
         .order('create_time', { ascending: false })
         .limit(limit)
       return data || []
@@ -125,7 +126,7 @@ export const api = {
       })
     }
     try {
-      const { data, error } = await supabase.rpc('get_monthly_trends')
+      const { data, error } = await supabase.rpc('get_monthly_trends', { p_location_id: 'cartorio-paulista-location' })
       if (error) throw error
       return data || []
     } catch {

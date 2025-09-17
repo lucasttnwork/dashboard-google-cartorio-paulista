@@ -20,7 +20,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci && npx playwright install chromium --with-deps
 
 # Production image
 FROM base AS runner

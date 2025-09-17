@@ -3,14 +3,15 @@
 import { AppShell } from '@/components/shell/app-shell'
 import { DataTable } from '@/components/table/data-table'
 import { reviewsColumns } from '@/components/table/reviews-columns'
-import { FileText, Download } from 'lucide-react'
+import { FileText, Download, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { AdvancedFiltersComponent, type AdvancedFilters } from '@/components/ui/advanced-filters'
-import type { PeriodPreset } from '@/components/ui/period-filter'
-import type { DateRange } from 'react-day-picker'
-import { fetchRecentReviews, fetchReviewsStats } from '@/lib/adapters/supabase'
+import { MonthlyNavigation } from '@/components/ui/monthly-navigation'
+import { useMonthlyNavigation } from '@/lib/hooks/use-monthly-navigation'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 // Tipo para as avaliações
 type LocalReview = {
@@ -22,7 +23,7 @@ type LocalReview = {
   collection_source: string
 }
 
-// Dados mock para demonstração
+// Dados mock para demonstração (fallback)
 const mockReviews: LocalReview[] = [
   {
     review_id: "1",
@@ -69,44 +70,23 @@ const mockReviews: LocalReview[] = [
 export default function ReviewsPage() {
   const [filters, setFilters] = useState<AdvancedFilters>({})
   const [isExporting, setIsExporting] = useState(false)
-  const [reviews, setReviews] = useState<LocalReview[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [stats, setStats] = useState<any>(null)
 
-  // Carregar dados reais do Supabase
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true)
-        console.log('🔄 Carregando dados de reviews...')
-        
-        // Carregar reviews recentes (100 para ter dados suficientes)
-        const reviewsData = await fetchRecentReviews(100)
-        console.log('📊 Reviews carregadas:', reviewsData.length)
-        
-        // Carregar estatísticas
-        const statsData = await fetchReviewsStats()
-        console.log('📈 Stats carregadas:', statsData)
-        
-        setReviews(reviewsData)
-        setStats(statsData)
-      } catch (error) {
-        console.error('❌ Erro ao carregar dados:', error)
-        // Em caso de erro, usar dados mock
-        console.log('🔄 Usando dados mock devido ao erro')
-        setReviews(mockReviews)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  // Hook para navegação mensal
+  const {
+    availableMonths,
+    currentMonth,
+    reviews: monthlyReviews,
+    stats: monthlyStats,
+    isLoading,
+    error,
+    changeMonth,
+    refreshData
+  } = useMonthlyNavigation()
 
-    loadData()
-  }, [])
-
-  // Filtrar dados baseado nos filtros aplicados
+  // Filtrar dados baseado nos filtros aplicados (aplicado aos dados mensais)
   const filteredReviews = useMemo(() => {
-    // Usar dados reais se disponíveis, senão usar mocks
-    let filtered = [...(reviews.length > 0 ? reviews : mockReviews)]
+    // Usar dados mensais se disponíveis, senão usar mocks
+    let filtered = [...(monthlyReviews.length > 0 ? monthlyReviews : mockReviews)]
 
     // Filtro por rating
     if (filters.rating && filters.rating.length > 0) {
@@ -127,19 +107,8 @@ export default function ReviewsPage() {
       )
     }
 
-    // Filtro por período (simplificado - apenas verifica se está dentro dos últimos 30 dias)
-    if (filters.period) {
-      const now = new Date()
-      const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
-
-      filtered = filtered.filter(review => {
-        const reviewDate = new Date(review.create_time)
-        return reviewDate >= thirtyDaysAgo && reviewDate <= now
-      })
-    }
-
     return filtered
-  }, [filters, reviews])
+  }, [filters, monthlyReviews])
 
   // Calcular estatísticas baseadas nos dados filtrados
   const localStats = useMemo(() => {
@@ -187,8 +156,9 @@ export default function ReviewsPage() {
 
       if (link.download !== undefined) {
         const url = URL.createObjectURL(blob)
+        const monthLabel = currentMonth ? `_${currentMonth}` : ''
         link.setAttribute('href', url)
-        link.setAttribute('download', `avaliacoes_cartorio_paulista_${new Date().toISOString().split('T')[0]}.csv`)
+        link.setAttribute('download', `avaliacoes_cartorio_paulista${monthLabel}_${new Date().toISOString().split('T')[0]}.csv`)
         link.style.visibility = 'hidden'
         document.body.appendChild(link)
         link.click()
@@ -218,10 +188,19 @@ export default function ReviewsPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Avaliações</h1>
             <p className="text-muted-foreground">
-              Gerenciar e analisar todas as avaliações recebidas
+              Gerenciar e analisar todas as avaliações recebidas por mês
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              onClick={refreshData}
+              variant="outline"
+              size="sm"
+              disabled={isLoading}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
             <AdvancedFiltersComponent
               filters={filters}
               onFiltersChange={setFilters}
@@ -242,46 +221,71 @@ export default function ReviewsPage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border bg-card p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-2xl font-bold">{isLoading ? '...' : localStats.total}</p>
-                <p className="text-sm text-muted-foreground">Total de Avaliações</p>
-              </div>
-            </div>
+        {/* Layout principal com navegação mensal e conteúdo */}
+        <div className="grid gap-6 lg:grid-cols-4">
+          {/* Navegação mensal - Sidebar */}
+          <div className="lg:col-span-1">
+            <MonthlyNavigation
+              availableMonths={availableMonths}
+              currentMonth={currentMonth}
+              onMonthChange={changeMonth}
+              isLoading={isLoading}
+            />
           </div>
-          <div className="rounded-2xl border bg-card p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-yellow-400" />
-              <div>
-                <p className="text-2xl font-bold">{isLoading ? '...' : localStats.avgRating}</p>
-                <p className="text-sm text-muted-foreground">Rating Médio</p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border bg-card p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-green-400" />
-              <div>
-                <p className="text-2xl font-bold">{isLoading ? '...' : localStats.fiveStarPercentage}%</p>
-                <p className="text-sm text-muted-foreground">Avaliações 5★</p>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Data Table */}
-        <div className="rounded-2xl border bg-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Todas as Avaliações</h3>
-          <DataTable
-            columns={reviewsColumns}
-            data={filteredReviews}
-            tableId="reviews-page"
-            searchPlaceholder="Buscar por nome, comentário..."
-          />
+          {/* Conteúdo principal */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Stats Cards */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border bg-card p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-2xl font-bold">{isLoading ? '...' : localStats.total}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Avaliações {currentMonth ? `(${format(new Date(currentMonth + '-01'), 'MMM yyyy', { locale: ptBR })})` : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border bg-card p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-yellow-400" />
+                  <div>
+                    <p className="text-2xl font-bold">{isLoading ? '...' : localStats.avgRating}</p>
+                    <p className="text-sm text-muted-foreground">Rating Médio</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border bg-card p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-green-400" />
+                  <div>
+                    <p className="text-2xl font-bold">{isLoading ? '...' : localStats.fiveStarPercentage}%</p>
+                    <p className="text-sm text-muted-foreground">Avaliações 5★</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Table */}
+            <div className="rounded-2xl border bg-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">
+                  Avaliações {currentMonth ? `- ${format(new Date(currentMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}` : ''}
+                </h3>
+                {error && (
+                  <p className="text-sm text-red-500">{error}</p>
+                )}
+              </div>
+              <DataTable
+                columns={reviewsColumns}
+                data={filteredReviews}
+                tableId="reviews-page"
+                searchPlaceholder="Buscar por nome, comentário..."
+              />
+            </div>
+          </div>
         </div>
       </div>
     </AppShell>

@@ -3,11 +3,13 @@
 import {
   AreaChart as RArea,
   Area,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  Legend,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -16,6 +18,7 @@ interface DataPoint {
   date: string
   reviews: number
   rating: number
+  ma7?: number
 }
 
 interface AreaChartProps {
@@ -79,6 +82,18 @@ export function AreaChart({
                     strokeWidth={2}
                     fill="url(#fill-silver)"
                   />
+                  {/* Linha de média móvel (7 dias) */}
+                  <Line
+                    type="monotone"
+                    dataKey="ma7"
+                    name="Média móvel (7d)"
+                    stroke="rgba(0, 200, 255, 0.9)"
+                    strokeWidth={3}
+                    strokeDasharray="6 4"
+                    dot={false}
+                    connectNulls
+                  />
+                  <Legend verticalAlign="top" height={24} />
                 </RArea>
               </ResponsiveContainer>
             </div>

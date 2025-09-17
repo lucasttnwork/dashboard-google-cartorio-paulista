@@ -109,10 +109,19 @@ export const reviewsColumns: ColumnDef<Review>[] = [
       )
     },
     cell: ({ row }) => {
-      const date = row.getValue("create_time") as string
+      const dateStr = row.getValue("create_time") as string
+      let out = "—"
+      if (dateStr) {
+        const d = new Date(dateStr)
+        if (!isNaN(d.getTime())) {
+          try {
+            out = format(d, "dd/MM/yyyy HH:mm", { locale: ptBR })
+          } catch {}
+        }
+      }
       return (
         <div className="text-sm">
-          {format(new Date(date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+          {out}
         </div>
       )
     },

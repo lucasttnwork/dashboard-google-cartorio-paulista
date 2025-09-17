@@ -106,9 +106,22 @@ export class CronScheduler {
     try {
       logger.cron.start()
       
-      // Step 1: Scrape reviews
+      // Step 1: Scrape reviews (Playwright)
       logger.info('📡 Step 1: Scraping reviews from Google Business Profile...')
-      const rawReviews = await this.scraper.scrapeReviews()
+      let rawReviews = await this.scraper.scrapeReviews()
+
+      // Fallback to DataForSEO provider if DOM scrape yields none and provider enabled
+      if ((!rawReviews || rawReviews.length === 0) && (config.dataforseo?.enabled && config.dataforseo?.authB64)) {
+        try {
+          logger.info('🔁 No DOM reviews. Falling back to DataForSEO...')
+          const df = await import('../thirdparty/DataForSEOFallback.js')
+          const fallback = new df.DataForSEOFallback()
+          rawReviews = await fallback.fetchLatest()
+          logger.info(`✅ DataForSEO returned ${rawReviews.length} reviews`)
+        } catch (e) {
+          logger.warn('⚠️ DataForSEO fallback failed or not configured properly', { error: e.message })
+        }
+      }
       
       if (rawReviews.length === 0) {
         logger.info('ℹ️ No new reviews found')

@@ -1,23 +1,38 @@
 "use client"
 
+import * as React from 'react'
 import { AppShell } from '@/components/shell/app-shell'
 import { CardKPI } from '@/components/kpi/card-kpi'
 import { CollaboratorsTable } from '@/components/CollaboratorsTable'
-import { useCollaborators, useCollaboratorsStats } from '@/lib/hooks/use-collaborators'
+import { fetchCollaboratorMentions } from '@/lib/adapters/supabase'
 import { Users, UserCheck, UserX, Briefcase } from 'lucide-react'
 
 export default function CollaboratorsPage() {
-  const { data } = useCollaborators({ page: 1, pageSize: 50 })
-  const { data: stats } = useCollaboratorsStats()
+  const [collaborators, setCollaborators] = React.useState<any[]>([])
+  const [stats, setStats] = React.useState<any>(null)
 
-  const collaborators = (data?.data || []).map(c => ({
-    ...c,
-    // métricas mock para enriquecer tabela/UX
-    mentions: Math.floor(20 + Math.random() * 40),
-    avgRating: 4 + Math.random(),
-    positiveMentions: Math.floor(Math.random() * 20),
-    negativeMentions: Math.floor(Math.random() * 5),
-  }))
+  React.useEffect(() => {
+    const load = async () => {
+      const mentions = await fetchCollaboratorMentions()
+      const tableRows = (mentions || []).map((m, idx) => ({
+        id: idx + 1,
+        full_name: m.full_name,
+        department: m.department || '—',
+        position: '—',
+        is_active: true,
+        mentions: m.mentions,
+        avgRating: m.avg_rating_when_mentioned ? Number(m.avg_rating_when_mentioned) : undefined,
+      }))
+      setCollaborators(tableRows)
+      setStats({
+        total_collaborators: tableRows.length,
+        active_collaborators: tableRows.length, // sem status real no momento
+        inactive_collaborators: 0,
+        top_department: 'E-notariado'
+      })
+    }
+    load()
+  }, [])
 
   return (
     <AppShell>

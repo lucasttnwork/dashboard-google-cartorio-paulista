@@ -337,7 +337,10 @@ returns table (
   newest_review timestamptz,
   five_star_count bigint,
   five_star_percentage numeric(5,2)
-) language sql as $$
+) language sql
+security definer
+set search_path = public
+as $$
   select
     count(*) as total_reviews,
     avg(rating)::numeric(4,2) as avg_rating,
@@ -350,6 +353,7 @@ returns table (
     end as five_star_percentage
   from reviews;
 $$;
+grant execute on function get_reviews_stats() to anon, authenticated;
 
 -- Function to get recent reviews with limit
 create or replace function get_recent_reviews(limit_param integer default 10)
@@ -362,7 +366,10 @@ returns table (
   create_time timestamptz,
   update_time timestamptz,
   collection_source text
-) language sql as $$
+) language sql
+security definer
+set search_path = public
+as $$
   select
     r.review_id,
     r.location_id,
@@ -376,6 +383,7 @@ returns table (
   order by r.create_time desc
   limit limit_param;
 $$;
+grant execute on function get_recent_reviews(integer) to anon, authenticated;
 
 -- Function to get monthly trends
 create or replace function get_monthly_trends()
@@ -388,7 +396,10 @@ returns table (
   three_star_count bigint,
   two_star_count bigint,
   one_star_count bigint
-) language sql as $$
+) language sql
+security definer
+set search_path = public
+as $$
   select
     to_char(date_trunc('month', create_time), 'YYYY-MM') as month,
     count(*) as total_reviews,
@@ -403,6 +414,67 @@ returns table (
   group by date_trunc('month', create_time)
   order by month desc;
 $$;
+grant execute on function get_monthly_trends() to anon, authenticated;
+
+-- Function to get reviews by month
+create or replace function get_reviews_by_month(p_month text, p_limit integer default 1000, p_offset integer default 0)
+returns table (
+  review_id text,
+  location_id text,
+  rating integer,
+  comment text,
+  reviewer_name text,
+  create_time timestamptz,
+  update_time timestamptz,
+  collection_source text
+) language sql
+security definer
+set search_path = public
+as $$
+  select
+    r.review_id,
+    r.location_id,
+    r.rating,
+    r.comment,
+    r.reviewer_name,
+    r.create_time,
+    r.update_time,
+    'google'::text as collection_source
+  from reviews r
+  where to_char(date_trunc('month', r.create_time), 'YYYY-MM') = p_month
+  order by r.create_time desc
+  limit p_limit
+  offset p_offset;
+$$;
+grant execute on function get_reviews_by_month(text, integer, integer) to anon, authenticated;
+
+-- Function to get monthly stats for a specific month
+create or replace function get_monthly_stats(p_month text)
+returns table (
+  total_reviews bigint,
+  avg_rating numeric(4,2),
+  five_star_percentage numeric(5,2),
+  oldest_review timestamptz,
+  newest_review timestamptz,
+  five_star_count bigint
+) language sql
+security definer
+set search_path = public
+as $$
+  select
+    count(*) as total_reviews,
+    avg(rating)::numeric(4,2) as avg_rating,
+    case when count(*) > 0 then
+      (count(case when rating = 5 then 1 end) * 100.0 / count(*))::numeric(5,2)
+    else 0
+    end as five_star_percentage,
+    min(create_time) as oldest_review,
+    max(create_time) as newest_review,
+    count(case when rating = 5 then 1 end) as five_star_count
+  from reviews
+  where to_char(date_trunc('month', create_time), 'YYYY-MM') = p_month;
+$$;
+grant execute on function get_monthly_stats(text) to anon, authenticated;
 
 -- Function to get collaborator mentions with rankings
 create or replace function get_collaborator_mentions()
@@ -412,7 +484,10 @@ returns table (
   mentions bigint,
   avg_rating_when_mentioned numeric(4,2),
   latest_mention timestamptz
-) language sql as $$
+) language sql
+security definer
+set search_path = public
+as $$
   select
     c.full_name,
     coalesce(c.department, 'Não informado') as department,
@@ -426,6 +501,7 @@ returns table (
   group by c.id, c.full_name, c.department
   order by mentions desc, c.full_name;
 $$;
+grant execute on function get_collaborator_mentions() to anon, authenticated;
 
 -- Alerts table
 create table if not exists review_alerts (
