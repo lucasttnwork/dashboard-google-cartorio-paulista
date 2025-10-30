@@ -32,14 +32,11 @@ export function useMonthlyNavigation(options: UseMonthlyNavigationOptions = {}) 
     const loadAvailableMonths = async () => {
       try {
         setState(prev => ({ ...prev, isLoading: true, error: null }))
-        // Meses via tendências mensais (sempre usar esta fonte)
-        const trends = await fetchMonthlyTrends()
-        const uniq = new Set<string>()
-        trends.forEach((t: any) => {
-          const m = String(t.month || '').substring(0, 7)
-          if (/^\d{4}-\d{2}$/.test(m)) uniq.add(m)
-        })
-        const months: string[] = Array.from(uniq).sort().reverse()
+
+        // Usar fetchAvailableMonths que busca diretamente da tabela reviews
+        console.log('🔄 Buscando meses disponíveis...')
+        const months = await fetchAvailableMonths()
+        console.log('📅 Meses encontrados:', months)
 
         setState(prev => ({
           ...prev,
@@ -48,7 +45,7 @@ export function useMonthlyNavigation(options: UseMonthlyNavigationOptions = {}) 
           isLoading: false
         }))
       } catch (error) {
-        console.error('Erro ao carregar meses disponíveis:', error)
+        console.error('❌ Erro ao carregar meses disponíveis:', error)
         setState(prev => ({
           ...prev,
           error: 'Erro ao carregar meses disponíveis',

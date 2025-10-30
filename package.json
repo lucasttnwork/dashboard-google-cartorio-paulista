@@ -6,18 +6,23 @@
   "scripts": {
     "test": "node test-dataforseo.js",
     "test:dataforseo": "node test-dataforseo.js",
-    "start": "echo 'Use npm run test para testar a integração'"
+    "start": "echo 'Use npm run test para testar a integração'",
+    "invoke:auto-collector": "node scripts/invoke-auto-collector.js",
+    "import:reviews": "node scripts/import-google-reviews.js"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.2.6",
     "@supabase/supabase-js": "^2.57.4",
+    "apify-client": "^2.17.0",
     "axios": "^1.6.0",
     "dotenv": "^17.2.2",
+    "pg": "^8.16.3",
     "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "playwright": "^1.55.0"
+    "playwright": "^1.55.0",
+    "ts-node": "^10.9.2"
   },
   "keywords": [
     "supabase",

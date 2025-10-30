@@ -269,10 +269,21 @@ INSERT INTO monitoring_config (
 - ✅ `CONFIGURACAO_FINAL_SISTEMA.md` - Este arquivo de configuração
 
 ### **Arquivos de Implementação**
-- `supabase/functions/auto-collector/index.ts` - Edge Function principal
-- `supabase/functions/scheduler/index.ts` - Agendador automático
-- `test-auto-collection.js` - Script de testes
+- `supabase/functions/auto-collector/index.ts` - Edge Function (legado, migrado para Railway)
+- `railway-collector/server.js` - Serviço Node (endpoint `/collect`)
+- `railway-collector/src/scheduler/index.js` - Cron worker Railway
+- `railway-collector/scripts/generate-synthetic-reviews.js` - Dataset sintético
+- `railway-collector/test-collector.js` - Teste end-to-end real
 - `supabase/sql/init.sql` - Estrutura do banco
+
+### **Checklist de Execução (Railway Collector)**
+- `npm install`
+- `npm test`
+- `node test-collector.js`
+- (Opcional) `npm run generate:synthetic-reviews -- --base tmp_apify_samples/sample_normalized_*.json --new 2 --updated 2`
+- Validar Supabase: `collection_runs`, `reviews`, `reviews_raw`
+- Confirmar secrets obrigatórios (Apify, Supabase, `COLLECTOR_SERVICE_URL`, `ENABLE_CRON`)
+- Cron Railway diário chamando `/collect` (06h BRT) com checklist `npm test && node test-collector.js`
 
 ---
 

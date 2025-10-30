@@ -514,5 +514,22 @@ create table if not exists review_alerts (
   unique (review_id, alert_type)
 );
 
+-- Adicionar coluna após a criação da tabela gbp_locations (por volta da linha 30)
+alter table gbp_locations add column if not exists metrics_last_updated timestamptz default now();
+
+-- Function to update location metrics
+create or replace function update_location_metrics(location_id_param text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update gbp_locations 
+  set metrics_last_updated = now() 
+  where location_id = location_id_param;
+$$;
+
+grant execute on function update_location_metrics(text) to anon, authenticated;
+
 
 

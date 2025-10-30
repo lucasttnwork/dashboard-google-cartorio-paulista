@@ -12,10 +12,15 @@ alter table if exists reviews
   add column if not exists translated_text text,
   add column if not exists response_text text,
   add column if not exists response_time timestamptz,
+  add column if not exists last_seen_at timestamptz,
   add column if not exists source text default 'apify';
 
 -- Preencher source para linhas existentes sem valor
 update reviews set source = 'apify' where source is null;
+
+-- Garantir coluna last_seen_at em reviews_raw para histórico de coleta
+alter table if exists reviews_raw
+  add column if not exists last_seen_at timestamptz;
 
 -- 2) Índices/constraints
 -- Índice único condicional para review_url quando não nulo
@@ -32,9 +37,28 @@ end $$;
 -- Garantir índice (location_id, create_time) já criado em init.sql; manter idempotência
 create index if not exists idx_reviews_location_time on reviews(location_id, create_time);
 
--- 3) Tabelas de arquivamento para limpeza de legado (opcional de segurança)
 create table if not exists reviews_legacy_archive (like reviews including all);
 create table if not exists reviews_raw_legacy_archive (like reviews_raw including all);
+
+-- 3.1) Registro de execuções de coleta (Apify)
+create table if not exists collection_runs (
+  id bigserial primary key,
+  location_id text references gbp_locations(location_id) on delete cascade,
+  run_type text not null check (run_type in ('manual','scheduled')),
+  status text not null default 'running' check (status in ('running','completed','failed')),
+  started_at timestamptz not null default now(),
+  completed_at timestamptz,
+  reviews_found integer,
+  reviews_new integer,
+  reviews_updated integer,
+  execution_time_ms integer,
+  apify_run_id text,
+  error_message text,
+  metadata jsonb default '{}'::jsonb
+);
+
+create index if not exists idx_collection_runs_location_started on collection_runs(location_id, started_at desc);
+create index if not exists idx_collection_runs_status on collection_runs(status);
 
 -- 4) RPCs com p_location_id e filtro estrito por source='apify'
 

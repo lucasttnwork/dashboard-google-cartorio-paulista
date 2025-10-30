@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/clean-and-prepare-reviews.js:*)",
+      "Bash(node scripts/upsert-to-supabase.js:*)",
+      "Bash(curl:*)",
+      "Bash(ping:*)",
+      "Bash(findstr:*)",
+      "Bash(cat:*)",
+      "Bash(nslookup:*)",
+      "Bash(node:*)",
+      "Bash(ipconfig:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout /t 10)",
+      "Read(//c/Users/Lucas/OneDrive/Documentos/Projetos cursor/**)",
+      "Bash(start test-supabase-browser.html)",
+      "Read(//c/Windows/System32/drivers/etc/**)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
