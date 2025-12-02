@@ -15,7 +15,7 @@ interface Collaborator {
   department: string
   position: string
   is_active: boolean
-  mentions?: number
+  mentions: number
   avgRating?: number
   positiveMentions?: number
   negativeMentions?: number

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ComponentType, type SVGProps } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -21,13 +21,19 @@ import {
   ChevronRight,
 } from "lucide-react"
 
-const navigation = [
+type NavigationItem = {
+  name: string
+  href: string
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+}
+
+const navigation: NavigationItem[] = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "Colaboradores", href: "/collaborators", icon: Users },
   { name: "Trends", href: "/trends", icon: TrendingUp },
 ]
 
-const bottomNavigation: Array<never> = []
+const bottomNavigation: NavigationItem[] = []
 
 export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed } = useUI()

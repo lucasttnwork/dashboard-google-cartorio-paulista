@@ -1,2 +1,0 @@
-TypeError: context.setViewportSize is not a function
-    at run (C:\Users\Lucas\OneDrive\Documentos\Projetos cursor\Dashboard Google - Cartório Paulista\scripts\audit-e2e.js:128:17)
