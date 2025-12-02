@@ -46,6 +46,9 @@ export class ReviewProcessor {
         // Process and clean review data
         const processedReview = await this.cleanAndEnhanceReview(review)
         
+        // Ensure stable deterministic review_id for idempotency
+        processedReview.review_id = this.generateStableId(processedReview)
+        
         // Add to dedup cache
         this.addToCache(reviewHash, review.review_id)
         
@@ -183,6 +186,23 @@ export class ReviewProcessor {
       .replace(/\s+/g, ' ') // Normalize whitespace
       .replace(/[^\w\s\u00C0-\u017F.,!?()-]/g, '') // Keep only letters, numbers, accented chars, and basic punctuation
       .substring(0, 2000) // Limit length
+  }
+
+  /**
+   * Generate a stable deterministic review_id from key fields
+   * @param {Object} review
+   * @returns {string}
+   */
+  generateStableId(review) {
+    const seed = [
+      String(review.reviewer_name || ''),
+      String(review.comment || ''),
+      String(review.rating || ''),
+      String(review.create_time || '')
+    ].join('|')
+
+    const hash = crypto.createHash('sha256').update(seed).digest('hex')
+    return `gbp_${hash.slice(0, 40)}`
   }
 
   /**

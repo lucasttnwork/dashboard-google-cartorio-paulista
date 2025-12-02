@@ -1,0 +1,5 @@
+[33meadfef4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m chore(repo): substituir submódulo por conteúdo real do dashboard-frontend; fix(scraper): usar SERVICE_ROLE_KEY com fallback, Node 20 e build sem Playwright; chore(frontend): engines Node 20
+[33m40d9ffd[m chore(scraper): usar SERVICE_ROLE_KEY com fallback e instalar Chromium no build
+[33m5476920[m fix: Corrigir problemas do scraper em produção
+[33me1dad70[m fix: Corrigir submódulos e adicionar arquivos frontend/scraper corretamente
+[33m473bb35[m feat: Implementação completa do Dashboard Google - Cartório Paulista

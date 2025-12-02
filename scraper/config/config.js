@@ -15,6 +15,7 @@ export const config = {
     locationId: process.env.GBP_LOCATION_ID || 'cartorio-paulista-location',
     accountId: process.env.GBP_ACCOUNT_ID || 'cartorio-paulista',
     searchUrl: process.env.GBP_SEARCH_URL || 'https://www.google.com/maps/place/Cart%C3%B3rio+Paulista',
+    placeId: process.env.GBP_PLACE_ID || '',
     maxRetries: 3,
     requestDelay: 2000, // 2 seconds between requests
     timeout: 30000 // 30 seconds timeout
@@ -27,7 +28,7 @@ export const config = {
     viewport: { width: 1920, height: 1080 },
     maxConcurrentPages: 1, // Conservative approach
     reviewsPerPage: 10,
-    maxReviewsPerRun: 100
+    maxReviewsPerRun: parseInt(process.env.MAX_REVIEWS_PER_RUN || '150', 10)
   },
 
   // Cron schedule
@@ -57,6 +58,13 @@ export const config = {
     algorithm: 'sha256',
     fields: ['reviewer_name', 'comment', 'rating', 'create_time'],
     cacheSize: 10000 // Keep last 10k review hashes in memory
+  },
+
+  // DataForSEO fallback provider
+  dataforseo: {
+    baseUrl: process.env.DATAFORSEO_BASE_URL || 'https://api.dataforseo.com/v3',
+    authB64: process.env.DATAFORSEO_AUTH_B64 || '',
+    enabled: (process.env.DATAFORSEO_ENABLED || 'true').toLowerCase() !== 'false'
   }
 }
 

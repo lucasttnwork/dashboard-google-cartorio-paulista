@@ -17,20 +17,91 @@ export type Database = {
       collaborators: {
         Row: {
           aliases: string[] | null
+          created_at: string | null
+          department: string | null
           full_name: string | null
           id: number
+          is_active: boolean | null
+          position: string | null
+          updated_at: string | null
         }
         Insert: {
           aliases?: string[] | null
+          created_at?: string | null
+          department?: string | null
           full_name?: string | null
           id?: number
+          is_active?: boolean | null
+          position?: string | null
+          updated_at?: string | null
         }
         Update: {
           aliases?: string[] | null
+          created_at?: string | null
+          department?: string | null
           full_name?: string | null
           id?: number
+          is_active?: boolean | null
+          position?: string | null
+          updated_at?: string | null
         }
         Relationships: []
+      }
+      collection_runs: {
+        Row: {
+          api_cost: number | null
+          completed_at: string | null
+          error_message: string | null
+          execution_time_ms: number | null
+          id: number
+          location_id: string | null
+          metadata: Json | null
+          reviews_found: number | null
+          reviews_new: number | null
+          reviews_updated: number | null
+          run_type: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          api_cost?: number | null
+          completed_at?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: number
+          location_id?: string | null
+          metadata?: Json | null
+          reviews_found?: number | null
+          reviews_new?: number | null
+          reviews_updated?: number | null
+          run_type: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          api_cost?: number | null
+          completed_at?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: number
+          location_id?: string | null
+          metadata?: Json | null
+          reviews_found?: number | null
+          reviews_new?: number | null
+          reviews_updated?: number | null
+          run_type?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_runs_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "gbp_locations"
+            referencedColumns: ["location_id"]
+          },
+        ]
       }
       gbp_accounts: {
         Row: {
@@ -52,36 +123,51 @@ export type Database = {
           account_id: string | null
           address: string | null
           cid: string | null
+          current_rating: number | null
           domain: string | null
+          is_monitoring_active: boolean | null
+          last_review_sync: string | null
           location_id: string
           name: string | null
           phone: string | null
           place_id: string | null
+          sync_frequency_hours: number | null
           title: string | null
+          total_reviews_count: number | null
           website: string | null
         }
         Insert: {
           account_id?: string | null
           address?: string | null
           cid?: string | null
+          current_rating?: number | null
           domain?: string | null
+          is_monitoring_active?: boolean | null
+          last_review_sync?: string | null
           location_id: string
           name?: string | null
           phone?: string | null
           place_id?: string | null
+          sync_frequency_hours?: number | null
           title?: string | null
+          total_reviews_count?: number | null
           website?: string | null
         }
         Update: {
           account_id?: string | null
           address?: string | null
           cid?: string | null
+          current_rating?: number | null
           domain?: string | null
-          location_id: string
+          is_monitoring_active?: boolean | null
+          last_review_sync?: string | null
+          location_id?: string
           name?: string | null
           phone?: string | null
           place_id?: string | null
+          sync_frequency_hours?: number | null
           title?: string | null
+          total_reviews_count?: number | null
           website?: string | null
         }
         Relationships: [
@@ -91,6 +177,47 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gbp_accounts"
             referencedColumns: ["account_id"]
+          },
+        ]
+      }
+      monitoring_config: {
+        Row: {
+          alert_on_negative_review: boolean | null
+          alert_on_new_review: boolean | null
+          alert_rating_threshold: number | null
+          auto_collection_enabled: boolean | null
+          collection_frequency_hours: number | null
+          last_modified: string | null
+          location_id: string
+          webhook_url: string | null
+        }
+        Insert: {
+          alert_on_negative_review?: boolean | null
+          alert_on_new_review?: boolean | null
+          alert_rating_threshold?: number | null
+          auto_collection_enabled?: boolean | null
+          collection_frequency_hours?: number | null
+          last_modified?: string | null
+          location_id: string
+          webhook_url?: string | null
+        }
+        Update: {
+          alert_on_negative_review?: boolean | null
+          alert_on_new_review?: boolean | null
+          alert_rating_threshold?: number | null
+          auto_collection_enabled?: boolean | null
+          collection_frequency_hours?: number | null
+          last_modified?: string | null
+          location_id?: string
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_config_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: true
+            referencedRelation: "gbp_locations"
+            referencedColumns: ["location_id"]
           },
         ]
       }
@@ -179,18 +306,21 @@ export type Database = {
       review_collaborators: {
         Row: {
           collaborator_id: number
+          context_found: string | null
           match_score: number | null
           mention_snippet: string | null
           review_id: string
         }
         Insert: {
           collaborator_id: number
+          context_found?: string | null
           match_score?: number | null
           mention_snippet?: string | null
           review_id: string
         }
         Update: {
           collaborator_id?: number
+          context_found?: string | null
           match_score?: number | null
           mention_snippet?: string | null
           review_id?: string
@@ -211,6 +341,30 @@ export type Database = {
             referencedColumns: ["review_id"]
           },
         ]
+      }
+      review_collaborators_backup_cp: {
+        Row: {
+          collaborator_id: number
+          context_found: string | null
+          match_score: number | null
+          mention_snippet: string | null
+          review_id: string
+        }
+        Insert: {
+          collaborator_id: number
+          context_found?: string | null
+          match_score?: number | null
+          mention_snippet?: string | null
+          review_id: string
+        }
+        Update: {
+          collaborator_id?: number
+          context_found?: string | null
+          match_score?: number | null
+          mention_snippet?: string | null
+          review_id?: string
+        }
+        Relationships: []
       }
       review_labels: {
         Row: {
@@ -279,41 +433,84 @@ export type Database = {
       }
       reviews: {
         Row: {
+          collection_batch_id: string | null
+          collection_source: string | null
           comment: string | null
           create_time: string | null
           is_anonymous: boolean | null
+          is_local_guide: boolean | null
+          last_cekennd_at: string | null
+          last_seen_at: string | null
           location_id: string | null
+          original_language: string | null
+          processed_at: string | null
           rating: number | null
           reply_text: string | null
           reply_time: string | null
+          response_text: string | null
+          response_time: string | null
           review_id: string
+          review_url: string | null
+          reviewer_id: string | null
           reviewer_name: string | null
+          reviewer_photo_url: string | null
+          reviewer_url: string | null
+          source: string | null
+          translated_text: string | null
           tsv: unknown | null
           update_time: string | null
         }
         Insert: {
+          collection_batch_id?: string | null
+          collection_source?: string | null
           comment?: string | null
           create_time?: string | null
           is_anonymous?: boolean | null
+          is_local_guide?: boolean | null
+          last_seen_at?: string | null
           location_id?: string | null
+          original_language?: string | null
+          processed_at?: string | null
           rating?: number | null
           reply_text?: string | null
           reply_time?: string | null
+          response_text?: string | null
+          response_time?: string | null
           review_id: string
+          review_url?: string | null
+          reviewer_id?: string | null
           reviewer_name?: string | null
+          reviewer_photo_url?: string | null
+          reviewer_url?: string | null
+          source?: string | null
+          translated_text?: string | null
           tsv?: unknown | null
           update_time?: string | null
         }
         Update: {
+          collection_batch_id?: string | null
+          collection_source?: string | null
           comment?: string | null
           create_time?: string | null
-          is_anonymous?: string | null
+          is_anonymous?: boolean | null
+          is_local_guide?: boolean | null
+          last_seen_at?: string | null
           location_id?: string | null
+          original_language?: string | null
+          processed_at?: string | null
           rating?: number | null
           reply_text?: string | null
           reply_time?: string | null
+          response_text?: string | null
+          response_time?: string | null
           review_id?: string
+          review_url?: string | null
+          reviewer_id?: string | null
           reviewer_name?: string | null
+          reviewer_photo_url?: string | null
+          reviewer_url?: string | null
+          source?: string | null
+          translated_text?: string | null
           tsv?: unknown | null
           update_time?: string | null
         }
@@ -327,23 +524,164 @@ export type Database = {
           },
         ]
       }
+      reviews_backup_cp: {
+        Row: {
+          collection_batch_id: string | null
+          collection_source: string | null
+          comment: string | null
+          create_time: string | null
+          is_anonymous: boolean | null
+          last_checked_at: string | null
+          location_id: string | null
+          processed_at: string | null
+          rating: number | null
+          reply_text: string | null
+          reply_time: string | null
+          review_id: string
+          reviewer_name: string | null
+          tsv: unknown | null
+          update_time: string | null
+        }
+        Insert: {
+          collection_batch_id?: string | null
+          collection_source?: string | null
+          comment?: string | null
+          create_time?: string | null
+          is_anonymous?: boolean | null
+          last_checked_at?: string | null
+          location_id?: string | null
+          processed_at?: string | null
+          rating?: number | null
+          reply_text?: string | null
+          reply_time?: string | null
+          review_id: string
+          reviewer_name?: string | null
+          tsv?: unknown | null
+          update_time?: string | null
+        }
+        Update: {
+          collection_batch_id?: string | null
+          collection_source?: string | null
+          comment?: string | null
+          create_time?: string | null
+          is_anonymous?: boolean | null
+          last_checked_at?: string | null
+          location_id?: string | null
+          processed_at?: string | null
+          rating?: number | null
+          reply_text?: string | null
+          reply_time?: string | null
+          review_id?: string
+          reviewer_name?: string | null
+          tsv?: unknown | null
+          update_time?: string | null
+        }
+        Relationships: []
+      }
+      reviews_legacy_archive: {
+        Row: {
+          collection_batch_id: string | null
+          collection_source: string | null
+          comment: string | null
+          create_time: string | null
+          is_anonymous: boolean | null
+          is_local_guide: boolean | null
+          last_checked_at: string | null
+          location_id: string | null
+          original_language: string | null
+          processed_at: string | null
+          rating: number | null
+          reply_text: string | null
+          reply_time: string | null
+          response_text: string | null
+          response_time: string | null
+          review_id: string
+          review_url: string | null
+          reviewer_id: string | null
+          reviewer_name: string | null
+          reviewer_photo_url: string | null
+          reviewer_url: string | null
+          source: string | null
+          translated_text: string | null
+          tsv: unknown | null
+          update_time: string | null
+        }
+        Insert: {
+          collection_batch_id?: string | null
+          collection_source?: string | null
+          comment?: string | null
+          create_time?: string | null
+          is_anonymous?: boolean | null
+          is_local_guide?: boolean | null
+          last_checked_at?: string | null
+          location_id?: string | null
+          original_language?: string | null
+          processed_at?: string | null
+          rating?: number | null
+          reply_text?: string | null
+          reply_time?: string | null
+          response_text?: string | null
+          response_time?: string | null
+          review_id: string
+          review_url?: string | null
+          reviewer_id?: string | null
+          reviewer_name?: string | null
+          reviewer_photo_url?: string | null
+          reviewer_url?: string | null
+          source?: string | null
+          translated_text?: string | null
+          tsv?: unknown | null
+          update_time?: string | null
+        }
+        Update: {
+          collection_batch_id?: string | null
+          collection_source?: string | null
+          comment?: string | null
+          create_time?: string | null
+          is_anonymous?: boolean | null
+          is_local_guide?: boolean | null
+          last_checked_at?: string | null
+          location_id?: string | null
+          original_language?: string | null
+          processed_at?: string | null
+          rating?: number | null
+          reply_text?: string | null
+          reply_time?: string | null
+          response_text?: string | null
+          response_time?: string | null
+          review_id?: string
+          review_url?: string | null
+          reviewer_id?: string | null
+          reviewer_name?: string | null
+          reviewer_photo_url?: string | null
+          reviewer_url?: string | null
+          source?: string | null
+          translated_text?: string | null
+          tsv?: unknown | null
+          update_time?: string | null
+        }
+        Relationships: []
+      }
       reviews_raw: {
         Row: {
-          executed_at: string | null
+          last_seen_at: string | null
           location_id: string | null
           payload: Json
+          received_at: string | null
           review_id: string
         }
         Insert: {
-          executed_at?: string | null
+          last_seen_at?: string | null
           location_id?: string | null
           payload: Json
+          received_at?: string | null
           review_id: string
         }
         Update: {
-          executed_at?: string | null
+          last_seen_at?: string | null
           location_id?: string | null
           payload?: Json
+          received_at?: string | null
           review_id?: string
         }
         Relationships: [
@@ -355,6 +693,27 @@ export type Database = {
             referencedColumns: ["location_id"]
           },
         ]
+      }
+      reviews_raw_legacy_archive: {
+        Row: {
+          location_id: string | null
+          payload: Json
+          received_at: string | null
+          review_id: string
+        }
+        Insert: {
+          location_id?: string | null
+          payload: Json
+          received_at?: string | null
+          review_id: string
+        }
+        Update: {
+          location_id?: string | null
+          payload?: Json
+          received_at?: string | null
+          review_id?: string
+        }
+        Relationships: []
       }
       services: {
         Row: {
@@ -409,8 +768,16 @@ export type Database = {
           review_id: string
         }[]
       }
+      cleanup_legacy_from_dataset: {
+        Args: { p_ids: string[]; p_location_id: string; p_urls: string[] }
+        Returns: undefined
+      }
       complete_nlp_review: {
         Args: { p_review_id: string }
+        Returns: undefined
+      }
+      create_auto_alerts: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
       enqueue_nlp_review: {
@@ -420,6 +787,171 @@ export type Database = {
       fail_nlp_review: {
         Args: { p_error: string; p_review_id: string }
         Returns: undefined
+      }
+      find_collaborator_mentions: {
+        Args: { review_text: string }
+        Returns: {
+          collaborator_id: number
+          context_found: string
+          full_name: string
+          match_score: number
+          matched_alias: string
+          snippet: string
+        }[]
+      }
+      get_collaborator_mentions: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          avg_rating_when_mentioned: number
+          department: string
+          full_name: string
+          latest_mention: string
+          mentions: number
+        }[]
+      }
+      get_collaborator_mentions_by_month: {
+        Args: { p_month: string }
+        Returns: {
+          avg_rating_when_mentioned: number
+          department: string
+          full_name: string
+          latest_mention: string
+          mentions: number
+        }[]
+      }
+      get_collaborators_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          active_collaborators: number
+          inactive_collaborators: number
+          top_department: string
+          total_collaborators: number
+        }[]
+      }
+      get_daily_trends: {
+        Args: { p_days?: number } | { p_days?: number; p_location_id?: string }
+        Returns: {
+          avg_rating: number
+          day: string
+          total: number
+        }[]
+      }
+      get_daily_trends_for_month: {
+        Args: { p_month: string }
+        Returns: {
+          avg_rating: number
+          day: string
+          five_star_count: number
+          total_reviews: number
+        }[]
+      }
+      get_monthly_stats: {
+        Args: { p_location_id?: string; p_month: string } | { p_month: string }
+        Returns: {
+          avg_rating: number
+          five_star_count: number
+          five_star_percentage: number
+          newest_review: string
+          oldest_review: string
+          total_reviews: number
+        }[]
+      }
+      get_monthly_trends: {
+        Args: Record<PropertyKey, never> | { p_location_id?: string }
+        Returns: {
+          avg_rating: number
+          five_star_count: number
+          four_star_count: number
+          month: string
+          one_star_count: number
+          three_star_count: number
+          total_reviews: number
+          two_star_count: number
+        }[]
+      }
+      get_monthly_trends_ext: {
+        Args: { p_location_id: string; p_months: number }
+        Returns: {
+          avg_rating: number
+          avg_rating_enotariado: number
+          month: string
+          reviews_enotariado: number
+          total_reviews: number
+        }[]
+      }
+      get_pending_alerts: {
+        Args: { p_alert_type?: string; p_limit?: number }
+        Returns: {
+          alert_type: string
+          id: number
+          location_name: string
+          payload: Json
+          review_comment: string
+          review_id: string
+          review_rating: number
+          sent_at: string
+        }[]
+      }
+      get_recent_reviews: {
+        Args: { limit_param?: number; p_location_id?: string }
+        Returns: {
+          collection_source: string
+          comment: string
+          create_time: string
+          location_id: string
+          rating: number
+          review_id: string
+          reviewer_name: string
+          update_time: string
+        }[]
+      }
+      get_recent_reviews_with_fallback: {
+        Args: { limit_param?: number }
+        Returns: {
+          comment: string
+          display_time: string
+          location_id: string
+          rating: number
+          review_id: string
+          reviewer_name: string
+        }[]
+      }
+      get_reviews_by_month: {
+        Args:
+          | {
+              p_limit?: number
+              p_location_id?: string
+              p_month: string
+              p_offset?: number
+            }
+          | {
+              p_limit?: number
+              p_location_id?: string
+              p_month: string
+              p_offset?: number
+            }
+          | { p_limit?: number; p_month: string; p_offset?: number }
+        Returns: {
+          collection_source: string
+          comment: string
+          create_time: string
+          location_id: string
+          rating: number
+          review_id: string
+          reviewer_name: string
+          update_time: string
+        }[]
+      }
+      get_reviews_stats: {
+        Args: Record<PropertyKey, never> | { p_location_id?: string }
+        Returns: {
+          avg_rating: number
+          five_star_count: number
+          five_star_percentage: number
+          newest_review: string
+          oldest_review: string
+          total_reviews: number
+        }[]
       }
       gtrgm_compress: {
         Args: { "": unknown }
@@ -491,7 +1023,27 @@ export type Database = {
       }
       l2_normalize: {
         Args: { "": string } | { "": unknown } | { "": unknown }
-        Returns: unknown
+        Returns: string
+      }
+      refresh_monthly_view: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      search_reviews: {
+        Args: {
+          p_limit?: number
+          p_location_id?: string
+          p_search_term: string
+        }
+        Returns: {
+          comment: string
+          create_time: string
+          location_id: string
+          match_score: number
+          rating: number
+          review_id: string
+          reviewer_name: string
+        }[]
       }
       set_limit: {
         Args: { "": number }
@@ -590,7 +1142,7 @@ export type Tables<
       }
       ? R
       : never
-      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
@@ -615,7 +1167,7 @@ export type TablesInsert<
       }
       ? I
       : never
-      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
@@ -640,7 +1192,7 @@ export type TablesUpdate<
       }
       ? U
       : never
-      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
@@ -656,7 +1208,7 @@ export type Enums<
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchemaEnumNameOrOptions
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<

@@ -283,6 +283,30 @@ docker-compose logs -f scraper    # Ver logs do scraper
 docker-compose down               # Parar serviços
 ```
 
+## 📦 Padronização Apify (Passo-a-passo)
+
+1. Aplicar migração idempotente:
+   - Execute `supabase/sql/2025-09-17_apify_standardization.sql` no SQL Editor do Supabase.
+
+2. Canonicalizar location e limpar legado:
+```bash
+node scripts/cleanup_legacy_and_canonicalize.js "dataset_Google-Maps-Reviews-Scraper_2025-09-17_12-03-32-701 (1).json"
+```
+
+3. Importar dataset Apify (preenche todas as colunas e reviews_raw):
+```bash
+node import_apify_dataset_to_supabase.js "dataset_Google-Maps-Reviews-Scraper_2025-09-17_12-03-32-701 (1).json"
+```
+
+4. Validações rápidas:
+```sql
+select count(*) from reviews
+where location_id='cartorio-paulista-location' and source='apify'
+  and create_time >= '2025-09-01' and create_time < '2025-10-01';
+
+select review_url, count(*) from reviews where review_url is not null group by 1 having count(*)>1;
+```
+
 ## 🐛 Troubleshooting
 
 ### Problemas Comuns

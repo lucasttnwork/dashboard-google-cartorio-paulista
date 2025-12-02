@@ -74,45 +74,149 @@ export class SupabaseStorage {
       details: []
     }
 
-    for (const review of reviews) {
-      try {
-        const result = await this.saveReview(review)
-        
-        if (result.success) {
-          results.saved++
-          this.stats.saved++
-          
-          // Process collaborator mentions if any
-          if (review.collaboratorMentions) {
-            await this.saveCollaboratorMentions(review.review_id, review.collaboratorMentions)
+    // Ensure account/location exists to satisfy FK
+    await this.ensureGbpAccountAndLocation()
+
+    try {
+      // Pre-check existing ids (with create_time presence) para decidir quando atualizar
+      const allIds = reviews.map(r => r.review_id)
+      const existingMap = await this.getExistingReviewIds(allIds) // Map<id, hasCreateTime>
+
+      const newReviews = reviews.filter(r => {
+        const has = existingMap.has(r.review_id)
+        if (!has) return true
+        const hasCreateTime = existingMap.get(r.review_id) === true
+        const incomingHasCreateTime = !!r.create_time
+        // Atualizar se o registro existente não tem create_time e o novo tem
+        if (!hasCreateTime && incomingHasCreateTime) return true
+        this.stats.duplicates++
+        return false
+      })
+
+      results.duplicates = this.stats.duplicates
+
+      // Batch upsert in chunks (idempotente)
+      const chunkSize = 500
+      for (let i = 0; i < newReviews.length; i += chunkSize) {
+        const chunk = newReviews.slice(i, i + chunkSize)
+        try {
+          const { error } = await this.client
+            .from('reviews')
+            .upsert(chunk.map(r => ({
+              review_id: r.review_id,
+              location_id: r.location_id,
+              rating: r.rating,
+              comment: r.comment || null,
+              reviewer_name: r.reviewer_name,
+              is_anonymous: r.is_anonymous || false,
+              create_time: r.create_time,
+              update_time: r.update_time,
+              reply_text: r.reply_text || null,
+              reply_time: r.reply_time || null
+            })), { onConflict: 'review_id' })
+
+          if (error) throw error
+
+          results.saved += chunk.length
+          this.stats.saved += chunk.length
+
+          // Mentions (best-effort, not batched)
+          for (const review of chunk) {
+            if (review.collaboratorMentions) {
+              await this.saveCollaboratorMentions(review.review_id, review.collaboratorMentions)
+            }
           }
-        } else {
-          if (result.isDuplicate) {
-            results.duplicates++
-            this.stats.duplicates++
-          } else {
-            results.errors++
-            this.stats.errors++
+
+        } catch (e) {
+          // Fallback to per-row insert for this chunk if batch fails
+          logger.warn('⚠️ Batch insert failed, falling back to per-row insert for this chunk', { error: e.message })
+          for (const review of chunk) {
+            const result = await this.saveReview(review)
+            if (result.success) {
+              results.saved++
+              this.stats.saved++
+              if (review.collaboratorMentions) {
+                await this.saveCollaboratorMentions(review.review_id, review.collaboratorMentions)
+              }
+            } else if (result.isDuplicate) {
+              results.duplicates++
+              this.stats.duplicates++
+            } else {
+              results.errors++
+              this.stats.errors++
+            }
           }
         }
-
-        results.details.push(result)
-        
-      } catch (error) {
-        logger.error(`❌ Error saving review ${review.review_id}:`, error)
-        results.errors++
-        this.stats.errors++
-        
-        results.details.push({
-          review_id: review.review_id,
-          success: false,
-          error: error.message
-        })
       }
+
+    } catch (error) {
+      logger.error('❌ Error during batch save:', error)
+      results.errors++
+      this.stats.errors++
     }
 
     logger.info(`✅ Save complete: ${results.saved} saved, ${results.duplicates} duplicates, ${results.errors} errors`)
     return results
+  }
+
+  /**
+   * Save raw payloads for reviews (best-effort)
+   * @param {Array<{review_id: string, location_id: string, payload: any, received_at?: string}>} raws
+   */
+  async saveRawPayloads(raws) {
+    if (!this.client || !raws || raws.length === 0) return
+    const chunkSize = 300
+    for (let i = 0; i < raws.length; i += chunkSize) {
+      const chunk = raws.slice(i, i + chunkSize)
+      try {
+        const { error } = await this.client
+          .from('reviews_raw')
+          .upsert(
+            chunk.map(r => ({
+              review_id: r.review_id,
+              location_id: r.location_id,
+              payload: r.payload,
+              received_at: r.received_at || null
+            })),
+            { onConflict: 'review_id' }
+          )
+        if (error) throw error
+      } catch (e) {
+        logger.warn('⚠️ saveRawPayloads chunk failed', { error: e.message })
+      }
+    }
+  }
+
+  /**
+   * Ensure GBP account and location rows exist (FK requirements)
+   */
+  async ensureGbpAccountAndLocation() {
+    try {
+      const accountId = config.gbp.accountId || 'cartorio-paulista'
+      const locationId = config.gbp.locationId || 'cartorio-paulista-location'
+
+      // Upsert account
+      const { error: accErr } = await this.client
+        .from('gbp_accounts')
+        .upsert({ account_id: accountId, display_name: 'Cartório Paulista' }, { onConflict: 'account_id' })
+      if (accErr) throw accErr
+
+      // Upsert location
+      const { error: locErr } = await this.client
+        .from('gbp_locations')
+        .upsert({
+          location_id: locationId,
+          account_id: accountId,
+          name: 'Cartório Paulista',
+          title: 'Cartório Paulista - 2º Cartório de Notas de São Paulo',
+          place_id: config.gbp.placeId || null
+        }, { onConflict: 'location_id' })
+      if (locErr) throw locErr
+
+    } catch (error) {
+      logger.error('❌ Error ensuring GBP account/location exists:', error)
+      // Do not throw to avoid stopping whole batch; saves will fail if FK missing
+    }
   }
 
   /**
@@ -387,5 +491,34 @@ export class SupabaseStorage {
       logger.error('❌ Error fetching recent reviews:', error)
       return []
     }
+  }
+
+  /**
+   * Get existing review ids using batched IN queries
+   * @param {string[]} ids
+   * @returns {Promise<Set<string>>}
+   */
+  async getExistingReviewIds(ids) {
+    // Retorna Map<review_id, hasCreateTimeNonNull>
+    const existing = new Map()
+    // Smaller chunk to avoid 414 Request-URI Too Large through Cloudflare edges
+    const chunkSize = 300
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize)
+      try {
+        const { data, error } = await this.client
+          .from('reviews')
+          .select('review_id, create_time')
+          .in('review_id', chunk)
+
+        if (error) throw error
+        for (const row of data || []) {
+          existing.set(row.review_id, row.create_time != null)
+        }
+      } catch (e) {
+        logger.warn('⚠️ getExistingReviewIds chunk failed', { error: e.message })
+      }
+    }
+    return existing
   }
 }
