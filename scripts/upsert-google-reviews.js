@@ -6,6 +6,8 @@
  * Use o mesmo padrão para qualquer importação futura.
  */
 
+require("dotenv").config();
+
 const fs = require("node:fs");
 const path = require("node:path");
 const { createClient } = require("@supabase/supabase-js");
