@@ -23,4 +23,13 @@ node_modules/
 
 # OS specific
 .DS_Store
-\narchive/\n
+archive/
+
+# Intermediate/temporary files (per CLAUDE.md architecture)
+.tmp/
+*.csv
+*.json
+dataset_*.csv
+dataset_*.json
+EXECUTE_*.sql
+nul
