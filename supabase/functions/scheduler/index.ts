@@ -4,23 +4,41 @@ serve(async (req) => {
   try {
     console.log('⏰ Scheduler executando...');
     
-    // Chamada para o auto-collector a cada 6 horas
-    const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/auto-collector`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ action: 'run_collection' })
-    });
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const headers = {
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json'
+    };
 
-    const result = await response.json();
+    // Chamada para o auto-collector
+    console.log('▶️ Iniciando auto-collector...');
+    const autoCollectorPromise = fetch(`${supabaseUrl}/functions/v1/auto-collector`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action: 'run_collection' })
+    }).then(r => r.json()).catch(e => ({ error: e.message }));
+
+    // Chamada para o processador de jobs de colaboradores (reviews)
+    // Limite de 100 jobs por execução para não estourar tempo
+    console.log('▶️ Iniciando review-collaborator-jobs...');
+    const reviewJobsPromise = fetch(`${supabaseUrl}/functions/v1/review-collaborator-jobs?limit=100`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({})
+    }).then(r => r.json()).catch(e => ({ error: e.message }));
+
+    const [autoCollectorResult, reviewJobsResult] = await Promise.all([
+      autoCollectorPromise,
+      reviewJobsPromise
+    ]);
     
-    console.log('✅ Auto-collector executado:', result);
+    console.log('✅ Execuções concluídas:', { autoCollectorResult, reviewJobsResult });
     
     return new Response(JSON.stringify({
       scheduler_run: true,
-      auto_collector_result: result,
+      auto_collector_result: autoCollectorResult,
+      review_jobs_result: reviewJobsResult,
       timestamp: new Date().toISOString()
     }), {
       status: 200,
