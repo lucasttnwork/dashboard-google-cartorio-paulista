@@ -4,8 +4,10 @@
  * menções sem acento para aumentar a cobertura em português.
  *
  * Execution example:
- * TARGET_MONTH=2025-11 SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/link-collaborator-mentions.js
+ * TARGET_MONTH=2025-11 node scripts/link-collaborator-mentions.js
  */
+
+require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
 

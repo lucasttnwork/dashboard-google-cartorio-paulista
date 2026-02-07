@@ -286,3 +286,10 @@ WHERE conrelid = 'reviews'::regclass;
 - Documentado fluxo completo de ingestão com deduplicação
 - **Fix aplicado**: Adicionado `require("dotenv").config()` no início do script `scripts/upsert-google-reviews.js` para carregar variáveis do arquivo `.env` automaticamente
 - **Resultado**: Upsert de 914 reviews únicos (de 1266 no CSV original) com deduplicação automática de 352 duplicatas locais
+
+### 2026-02-06
+- **Upsert bem-sucedido**: 1.906 reviews únicos do dataset `dataset_Google-Maps-Reviews-Scraper_2026-02-06_17-37-24-011.json`
+- **Fix aplicado**: Adicionado `require("dotenv").config()` ao script `scripts/link-collaborator-mentions.js` para consistência com outros scripts
+- **Linkagem de colaboradores**: 37 menções identificadas em reviews de fevereiro/2026
+- **Nota sobre argumentos**: Para passar o mês ao script de linkagem, usar argumento direto (ex: `node scripts/link-collaborator-mentions.js 2026-02`) ao invés de variável de ambiente no Windows PowerShell
+- **Observação**: Primeiro erro de `fetch failed` foi temporário (rede), segunda execução funcionou perfeitamente
