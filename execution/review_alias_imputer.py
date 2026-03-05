@@ -117,9 +117,13 @@ def extract_json_from_text(text: str) -> Optional[str]:
 
 
 def call_openrouter(prompt: str, api_key: str) -> Optional[List[Dict[str, Any]]]:
+    delay = float(os.getenv("IMPUTER_REQUEST_DELAY", "0"))
+    if delay > 0:
+        import time
+        time.sleep(delay)
     url = "https://openrouter.ai/api/v1/chat/completions"
     payload = {
-        "model": "gpt-4o-mini",
+        "model": "stepfun/step-3.5-flash:free",
         "messages": [
             {
                 "role": "system",
@@ -133,14 +137,14 @@ def call_openrouter(prompt: str, api_key: str) -> Optional[List[Dict[str, Any]]]
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.0,
-        "max_tokens": 300,
+        "max_tokens": int(os.getenv("IMPUTER_MAX_TOKENS", "2000")),
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     resp = requests.post(url, headers=headers, json=payload, timeout=40)
     resp.raise_for_status()
     data = resp.json()
     choice = data.get("choices", [{}])[0]
-    content = choice.get("message", {}).get("content", "")
+    content = choice.get("message", {}).get("content") or ""
     payload = extract_json_from_text(content)
     if not payload:
         print("[WARN] Não foi possível extrair JSON válido da resposta:", content)
@@ -242,7 +246,7 @@ def gather_records_concurrently(
     openrouter_key: str,
 ) -> List[Dict[str, Any]]:
     records: List[Dict[str, Any]] = []
-    max_workers = min(5, len(reviews))
+    max_workers = min(int(os.getenv("IMPUTER_MAX_WORKERS", "2")), len(reviews))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(process_review, review, collaborators, collab_lookup, openrouter_key): review

@@ -293,3 +293,17 @@ WHERE conrelid = 'reviews'::regclass;
 - **Linkagem de colaboradores**: 37 menções identificadas em reviews de fevereiro/2026
 - **Nota sobre argumentos**: Para passar o mês ao script de linkagem, usar argumento direto (ex: `node scripts/link-collaborator-mentions.js 2026-02`) ao invés de variável de ambiente no Windows PowerShell
 - **Observação**: Primeiro erro de `fetch failed` foi temporário (rede), segunda execução funcionou perfeitamente
+
+### 2026-03-05
+- **Upsert bem-sucedido**: 802 reviews únicos do dataset `dataset_Google-Maps-Reviews-Scraper_2026-03-04_12-32-36-128.json`, sem duplicatas (dataset já vinha deduplicado)
+- **Dataset multi-mês**: O dataset cobria três meses distintos — 33 reviews de jan/2026, 677 de fev/2026, 92 de mar/2026
+- **Regra estabelecida**: Quando um dataset abrange múltiplos meses, o script de linkagem deve ser executado **uma vez por mês**, em sequência:
+  ```bash
+  node scripts/link-collaborator-mentions.js 2026-01
+  node scripts/link-collaborator-mentions.js 2026-02
+  node scripts/link-collaborator-mentions.js 2026-03
+  ```
+- **Linkagem retrospectiva**: Janeiro gerou 311 novas menções apesar de só 33 novos reviews no batch — o script opera sobre **todos os reviews do mês no banco**, não apenas os recém-inseridos. Re-executar para meses anteriores é seguro e útil quando novos colaboradores ou aliases forem adicionados.
+- **Fevereiro**: 238 novas menções (vs 37 no batch anterior), confirmando que os 677 reviews de fev/2026 eram majoritariamente registros novos que ainda não estavam no banco.
+- **Discrepância hits/matches em janeiro**: 360 reviews com hits potenciais, 310 com matches novos — os 50 restantes já tinham vínculo em `review_collaborators` de execuções anteriores (comportamento correto, idempotente).
+- **Pipeline estável**: Nenhum erro em nenhuma etapa (upsert + linkagem × 3 meses).
