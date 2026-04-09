@@ -168,3 +168,68 @@ Quando a Fase 5 habilitar CI, configurar no GitHub:
 - Include administrators
 - Restrict force pushes (exceto admin com `--force-with-lease`)
 - Restrict deletions
+
+---
+
+## End-of-session protocol (obrigatório)
+
+O context window de uma sessão do Claude Code é finito. Trabalho enterprise
+não cabe em uma sessão só. Para que cada nova sessão comece produtiva, toda
+sessão que encerra uma fase (ou pausa trabalho no meio de uma) precisa
+deixar um **handoff estático** que a próxima sessão possa carregar sem
+reconstruir contexto.
+
+### O que produzir ao fim de cada fase
+
+1. **`CHECKPOINT.md` da fase corrente atualizado** com o estado final:
+   commits, ACs verificados, decisões tomadas, issues descobertas, tarballs
+   gerados, tags criadas, SHAs relevantes.
+
+2. **`mem_save` via jarvis-memory** com tipo `session_summary`, resumindo a
+   execução e listando os pré-requisitos da próxima fase.
+
+3. **Atualização do auto-memory** (`project_phase_status.md`) marcando a fase
+   como concluída e a próxima como ativa.
+
+4. **`SESSION-OPENING-PROMPT.md` da próxima fase** em
+   `.planning/enterprise-rebuild/<next-phase>/SESSION-OPENING-PROMPT.md`,
+   seguindo o molde em [`docs/session-handoff-template.md`](session-handoff-template.md).
+
+5. **Tag semver da release** da fase (ex.: `v0.0.2-phase-0`) apontando para
+   o HEAD de `main` após o merge.
+
+6. **Push de tudo** (main + tags + branches de trabalho) para origin.
+
+O item (4) é o mais estratégico: é o contrato entre a sessão atual e a
+próxima. Sem ele, a próxima sessão queima 15-30 minutos só para recarregar
+contexto. Com ele, começa executando em 5 minutos.
+
+### O que a próxima sessão vai fazer ao abrir
+
+A primeira mensagem da nova sessão é o conteúdo do `SESSION-OPENING-PROMPT.md`
+copiado na íntegra. O novo agente segue as 5 primeiras ações do prompt
+(warm memory, leituras obrigatórias, verificação git, confirmação com o
+Senhor), e só depois começa o trabalho real da fase.
+
+### Quando pausar no meio de uma fase
+
+Se o contexto estiver apertado e o trabalho ainda não estiver completo:
+
+1. Faça commit do que está pronto e estável.
+2. Se houver trabalho em andamento não-commitável, registre em `CHECKPOINT.md`
+   o que estava sendo feito, onde parou, e o que precisa ser feito a seguir.
+3. **Atualize** o `SESSION-OPENING-PROMPT.md` da fase corrente (não da
+   próxima) com o estado de progresso: tasks já concluídas, task em que
+   você parou, gotchas descobertos.
+4. `mem_save` + push.
+5. Feche a sessão.
+
+A próxima sessão abrirá com o prompt atualizado e retomará exatamente de onde
+parou.
+
+### Relação com CRISPY "Dumb Zone"
+
+Este protocolo é a implementação concreta do princípio CRISPY de "wrap up e
+comece uma nova sessão ao aproximar 40% de uso do context window". Os
+arquivos estáticos (`CHECKPOINT.md`, `SESSION-OPENING-PROMPT.md`, memória
+jarvis) são o que permite a nova sessão arrancar sem perda.

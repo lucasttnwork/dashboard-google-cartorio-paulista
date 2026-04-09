@@ -27,6 +27,12 @@ Este projeto é um Dashboard de monitoramento de reviews do Google Business Prof
 3. Leia a SPEC e TASKS da fase ativa.
 4. Confirme com o Senhor antes de operações destrutivas ou irreversíveis.
 
+## Abertura e encerramento de sessão
+
+- **Toda nova sessão começa** com o warm-up do protocolo acima **mais** a leitura do `SESSION-OPENING-PROMPT.md` da fase ativa em `.planning/enterprise-rebuild/<fase>/`. Esse prompt é a fonte de contexto self-contained da fase e substitui a memória da conversa anterior.
+- **Toda sessão que encerra uma fase** (ou pausa trabalho) deve produzir o handoff para a próxima: `CHECKPOINT.md` atualizado, `mem_save`, auto-memory atualizada, `SESSION-OPENING-PROMPT.md` da próxima fase seguindo `docs/session-handoff-template.md`, tag de release, push. O protocolo detalhado está em `docs/git-workflow.md` → seção "End-of-session protocol".
+- Esse ritual é obrigatório — é a forma como o projeto escala trabalho enterprise através de múltiplas sessões sem perda de contexto.
+
 ## Convenções
 
 - **Idioma:** specs e planos em português brasileiro formal; código-fonte, commits e testes em inglês.
