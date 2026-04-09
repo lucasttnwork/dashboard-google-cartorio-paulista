@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +15,27 @@ configure_logging(settings.log_level)
 
 logger = structlog.get_logger(__name__)
 
-app = FastAPI(title="Cartorio Dashboard Backend", version="0.0.1")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Application lifespan context manager.
+
+    Replaces the deprecated ``@app.on_event("startup"/"shutdown")`` hooks.
+    Keeps startup/shutdown structured log lines for Sentry + Railway Logs.
+    Future phases will attach DB pools, httpx clients, and Sentry here.
+    """
+    logger.info("backend.startup", env=settings.env, version=app.version)
+    try:
+        yield
+    finally:
+        logger.info("backend.shutdown", version=app.version)
+
+
+app = FastAPI(
+    title="Cartorio Dashboard Backend",
+    version="0.0.1",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,23 +45,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health.router, prefix="/api/v1", tags=["health"])
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    logger.info(
-        "backend.startup",
-        env=settings.env,
-        version=app.version,
-    )
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    logger.info("backend.shutdown", version=app.version)
+app.include_router(health.router, prefix="/api/v1")
 
 
 @app.get("/health")
 async def root_health() -> dict[str, str]:
+    """Unversioned root health endpoint for container orchestration probes."""
     return {"status": "ok", "service": "backend", "version": app.version}
