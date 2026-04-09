@@ -41,6 +41,10 @@ end
 $$;
 
 -- Section 3 — Apply RLS default-deny on every table now living in archive
+-- Note: ALTER TABLE SET SCHEMA carries over RLS flags and policies from the source schema.
+-- If the rls_lockdown migration already created a <tablename>_deny_all policy while the table
+-- was still in public, that policy is now present on the archive copy. Guard CREATE POLICY
+-- with an existence check to remain idempotent.
 do $$
 declare
   r record;
@@ -50,10 +54,17 @@ begin
   loop
     execute format('alter table archive.%I enable row level security', r.tablename);
     execute format('alter table archive.%I force row level security', r.tablename);
-    execute format(
-      'create policy %I on archive.%I as restrictive for all to public using (false) with check (false)',
-      r.tablename || '_deny_all', r.tablename
-    );
+    if not exists (
+      select 1 from pg_policies
+      where schemaname = 'archive'
+        and tablename = r.tablename
+        and policyname = r.tablename || '_deny_all'
+    ) then
+      execute format(
+        'create policy %I on archive.%I as restrictive for all to public using (false) with check (false)',
+        r.tablename || '_deny_all', r.tablename
+      );
+    end if;
     execute format('revoke all on archive.%I from anon', r.tablename);
     execute format('revoke all on archive.%I from authenticated', r.tablename);
     execute format('revoke all on archive.%I from public', r.tablename);
