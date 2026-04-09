@@ -33,10 +33,11 @@ frontend/coverage/
 frontend/.turbo/
 
 # ─── Environment variables ───────────────────────────────
-# Ignore every .env and .env.<name>, but always allow .env.example
+# Ignore every .env and .env.<name>, but always allow *.example templates
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.*.example
 
 # ─── Editor / OS ─────────────────────────────────────────
 .idea/
