@@ -1,46 +1,75 @@
-# Logs
-logs
+# ─── Logs ────────────────────────────────────────────────
 *.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dev-debug.log
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Dependency directories
-node_modules/
+# ─── Python ──────────────────────────────────────────────
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+**/*.egg-info/
+**/dist/
+**/build/
+**/.tox/
 
-# Environment variables
-.env
+# ─── Node / Vite / Frontend ──────────────────────────────
+**/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/.turbo/
 
-# Editor directories and files
-.idea
-.vscode
+# ─── Environment variables ───────────────────────────────
+# Ignore every .env and .env.<name>, but always allow .env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# ─── Editor / OS ─────────────────────────────────────────
+.idea/
+.vscode/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# OS specific
 .DS_Store
-archive/
+Thumbs.db
 
-# Intermediate/temporary files (per CLAUDE.md architecture)
+# ─── Project intermediates / temp ────────────────────────
 .tmp/
+nul
 *.csv
-*.json
-dataset_*.csv
 dataset_*.json
 EXECUTE_*.sql
-nul
 
-# Auto Claude data directory
+# ─── Railway ─────────────────────────────────────────────
+.railway/
+
+# ─── Supabase CLI / local state ──────────────────────────
+supabase/.temp/
+supabase/.branches/
+
+# ─── Auto Claude framework (legacy, kept for back-compat) ─
 .auto-claude/
-
-# Auto Claude generated files
 .auto-claude-security.json
 .auto-claude-status
 .claude_settings.json
 .worktrees/
 .security-key
-logs/security/
+
+# ─── Runtime secrets backups (never commit) ──────────────
+.tmp/legacy-secrets/
