@@ -1,0 +1,130 @@
+name: security-gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  gitleaks:
+    name: Scan repo for secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  no-env-files:
+    name: Reject .env files in diff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect .env files added or modified in diff
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          event_name="${{ github.event_name }}"
+          range=""
+
+          if [ "$event_name" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.sha }}"
+            if [ -z "$base_sha" ]; then
+              echo "::warning::No base SHA available for pull_request event; skipping diff check."
+              exit 0
+            fi
+            range="${base_sha}...${head_sha}"
+          elif [ "$event_name" = "push" ]; then
+            before_sha="${{ github.event.before }}"
+            after_sha="${{ github.sha }}"
+            # Initial push / new branch: before is all zeros. Nothing to diff against.
+            if [ -z "$before_sha" ] || [ "$before_sha" = "0000000000000000000000000000000000000000" ]; then
+              echo "Initial push detected; skipping .env diff check."
+              exit 0
+            fi
+            range="${before_sha}...${after_sha}"
+          else
+            echo "::warning::Unsupported event '$event_name'; skipping .env diff check."
+            exit 0
+          fi
+
+          echo "Diff range: $range"
+          changed=$(git diff --name-only --diff-filter=ACM "$range" || true)
+
+          if [ -z "$changed" ]; then
+            echo "No changed files to inspect."
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$changed"
+
+          bad=$(echo "$changed" | grep -E '(^|/)\.env($|\.[^e])' || true)
+
+          if [ -n "$bad" ]; then
+            echo "::error::Forbidden .env files detected in diff:"
+            echo "$bad" | while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              echo "::error file=$f::.env files must not be committed. Use .env.example instead."
+            done
+            exit 1
+          fi
+
+          echo "OK: no .env files in diff."
+
+  migration-lint:
+    name: Validate Supabase migration filenames
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate migration filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dir="supabase/migrations"
+
+          if [ ! -d "$dir" ]; then
+            echo "No $dir directory found; skipping migration lint."
+            exit 0
+          fi
+
+          shopt -s nullglob
+          files=( "$dir"/*.sql )
+          shopt -u nullglob
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No .sql migrations found in $dir; skipping migration lint."
+            exit 0
+          fi
+
+          regex='^[0-9]{14}_[a-z0-9_]+\.sql$'
+          failed=0
+
+          for f in "${files[@]}"; do
+            base="$(basename "$f")"
+            if [[ ! "$base" =~ $regex ]]; then
+              echo "::error file=$f::Invalid migration filename '$base'. Expected format: YYYYMMDDHHMMSS_snake_case.sql"
+              failed=1
+            else
+              echo "OK: $base"
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "All migration filenames are valid."
