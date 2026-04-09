@@ -104,7 +104,8 @@ npm run lint
 
 ## Convenções
 
-- **Commits:** inglês, padrão `<tipo>(<escopo>): <descrição>`. Exemplos: `feat(backend): add auth middleware`, `chore: update gitignore`.
+- **Commits:** inglês, Conventional Commits (`feat|fix|chore|docs|test|refactor|perf|style|ci|build`). Exemplos: `feat(backend): add auth middleware`, `chore(deps): bump vitest to 3.0`.
+- **Branches:** GitHub Flow com histórico linear. `feature/*`, `fix/*`, `chore/*` a partir de `main`, PR de volta. Ver [`docs/git-workflow.md`](docs/git-workflow.md) para o guia completo.
 - **Specs e docs de planejamento:** português brasileiro formal em `.planning/`.
 - **Código-fonte:** inglês.
 - **Secrets:** jamais commitados. `.env*` gitignorados (exceto `.env.example`).
@@ -114,9 +115,9 @@ npm run lint
 
 | Fase | Nome | Status |
 |---|---|---|
-| −1 | Cleanup & Architectural Pivot | 🔜 em execução |
-| 0 | Security Baseline | spec pronta |
-| 1 | Auth & Backend BFF | após 0 |
+| −1 | Cleanup & Architectural Pivot | ✅ done (tag `v0.0.1-phase-minus-1`) |
+| 0 | Security Baseline | 🔜 próxima |
+| 1 | Auth & Backend BFF | spec a escrever após 0 |
 | 2 | Collaborators Admin Panel | após 1 |
 | 3 | Visualization Dashboard Refactor | após 1 |
 | 4 | Scraper Rebuild & Automation | após 1 |

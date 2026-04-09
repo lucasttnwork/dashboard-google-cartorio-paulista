@@ -30,7 +30,8 @@ Este projeto é um Dashboard de monitoramento de reviews do Google Business Prof
 ## Convenções
 
 - **Idioma:** specs e planos em português brasileiro formal; código-fonte, commits e testes em inglês.
-- **Commits:** atômicos por task. Padrão `<tipo>(<escopo>): <descrição>` (feat, fix, chore, docs, test, refactor).
+- **Commits:** atômicos por task. Conventional Commits (`feat|fix|chore|docs|test|refactor|perf|style|ci|build`) com escopo opcional.
+- **Branches:** GitHub Flow com histórico linear. Tudo a partir de `main`, PR de volta via rebase-merge ou squash. Nunca merge commit. Ver `docs/git-workflow.md`.
 - **Python:** PEP 8, `ruff` isort style, `mypy` strict, `from __future__ import annotations` em todos os módulos.
 - **TypeScript:** `strict: true`, `noUncheckedIndexedAccess: true`, path alias `@/*` → `./src/*`.
 - **Secrets:** nunca commitados. Vivem em `.env.local` (gitignored) por serviço ou em Railway Variables.
