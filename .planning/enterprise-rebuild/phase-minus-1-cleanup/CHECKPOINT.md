@@ -1,7 +1,8 @@
 # CHECKPOINT — Phase −1: Cleanup & Architectural Pivot
 
-> Status: **DONE** — integration validation passed 2026-04-09.
-> Last updated: 2026-04-09 19:07 (after tear-down).
+> Status: **DONE + MERGED + TAGGED** — 2026-04-09.
+> Tag: `v0.0.1-phase-minus-1` on `origin/main`.
+> Last updated: 2026-04-09 (post-merge).
 
 ---
 
@@ -223,11 +224,85 @@ the .env.local files that stay gitignored).
 
 ---
 
+## Finalization (T−1.12)
+
+### Git history consolidation
+
+- All 13 phase −1 commits (plus the pre-existing `docs(planning)` commit)
+  have been folded into `main`.
+- `new-dashboard-clean`, `full-new`, and `auto-claude/001-...` branches are
+  **deleted** from origin and locally. They are preserved as annotated tags
+  (`archive/legacy-*-2026-04-09`) for recovery.
+- `main` is now the **single trunk**. All future work branches off `main`
+  and merges back via PR with rebase or squash (no merge commits). See
+  `docs/git-workflow.md`.
+
+### Secret redaction
+
+During `git push`, GitHub push-protection correctly blocked the push
+because the Phase 0 planning documents (authored earlier in the session)
+had two **real Supabase keys** in plaintext: the project's current
+`sb_publishable_*` anon key and its `sb_secret_*` service role key.
+The concrete values are intentionally NOT repeated in this document
+to keep it scanner-safe; see the operator's local
+`.tmp/legacy-secrets/` backup if you need to identify which keys were
+compromised for the rotation.
+
+Response:
+
+1. Installed `git-filter-repo` via pip.
+2. Wrote a replacements file with both keys mapped to
+   `sb_publishable_REDACTED_IN_GIT_HISTORY` and
+   `sb_secret_REDACTED_IN_GIT_HISTORY`.
+3. Ran `git filter-repo --replace-text .tmp/git-redact-replacements.txt
+   --refs main --force`.
+4. Verified no residual plaintext occurrences via `git grep` of the
+   rewritten history.
+5. Re-created the `v0.0.1-phase-minus-1` tag on the new HEAD
+   (`ef2ec0e...`).
+6. `git push --force-with-lease origin main` — accepted.
+7. Pushed all four tags.
+
+**Important:** the redacted keys must still be **rotated in production**
+during Phase 0 T0.1, alongside the legacy JWTs. Push-protection prevented
+the first leak, but the keys may already exist in `.env*` files on the
+operator's machine or in other places they were exported to during prior
+sessions. Rotate them, do not trust that redaction alone is sufficient.
+
+### Final tags published to origin
+
+| Tag | Points to | Purpose |
+|---|---|---|
+| `v0.0.1-phase-minus-1` | `ef2ec0e` (new main HEAD) | Release marker for Phase −1 done |
+| `archive/legacy-main-2026-04-09` | `08898dd` | Pre-rebuild origin/main HEAD |
+| `archive/legacy-new-dashboard-clean-2026-04-09` | `8f80721` | Legacy intermediate branch |
+| `archive/legacy-full-new-2026-04-09` | `2d65f58` | Early rebuild attempt |
+
+### Remote state
+
+```
+$ git branch -r
+  origin/HEAD -> origin/main
+  origin/main
+```
+
+Only `origin/main` exists as a branch on the remote. Tags are the only
+way to reach legacy history.
+
+---
+
 ## Next phase (Phase 0 — Security Baseline)
 
 Pre-requisites for Phase 0:
-- [ ] T−1.11 passes and T−1.12 merges this branch into `new-dashboard-clean`.
-- [ ] `SUPABASE_ACCESS_TOKEN` available to the operator session.
-- [ ] `.tmp/legacy-secrets/*.bak` reviewed by the Senhor.
 
-Phase 0 first task (T0.1) rotates the legacy JWT keys that are still ACTIVE in prod. See `.planning/enterprise-rebuild/phase-0-security-baseline/SPEC.md`.
+- [x] T−1.11 passes and phase −1 is merged into `main`.
+- [ ] `SUPABASE_ACCESS_TOKEN` (sbp_*) available to the operator session.
+- [ ] `.tmp/legacy-secrets/*.bak` reviewed by the Senhor before purge.
+- [ ] **Rotate the redacted `sb_publishable_*` and `sb_secret_*` keys**
+      (see T0.1) — they were accidentally committed during this session
+      and although they were redacted from git history before the push,
+      they should be considered compromised.
+
+Phase 0 first task (T0.1) rotates the legacy JWT keys that are still
+ACTIVE in prod plus the two `sb_*` keys described above. See
+`.planning/enterprise-rebuild/phase-0-security-baseline/SPEC.md`.
