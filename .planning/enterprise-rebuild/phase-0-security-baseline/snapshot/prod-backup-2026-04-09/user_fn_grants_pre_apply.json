@@ -1,0 +1,232 @@
+[
+  {
+    "signature": "public.check_column_exists(p_table_name text, p_column_name text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.check_table_column(p_table_name text, p_column_name text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.claim_nlp_review(p_worker_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.cleanup_legacy_from_dataset(p_location_id text, p_ids text[], p_urls text[])",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.collaborator_alias_entries(p_collaborator_id bigint)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.collaborator_alias_trigger()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.complete_nlp_review(p_review_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.create_auto_alerts()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.enqueue_collaborator_refresh_job(p_collaborator_id bigint, p_delay interval)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.enqueue_nlp_review(p_review_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.enqueue_review_collaborator_job(p_review_id text, p_comment text, p_delay interval)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.escape_like_special(text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.escape_regex_special(text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.fail_nlp_review(p_review_id text, p_error text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.find_collaborator_mentions(review_text text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_collaborator_mentions()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_collaborator_mentions_by_month(p_month text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_collaborators_stats()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_daily_trends(p_days integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_daily_trends(p_days integer, p_location_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_daily_trends_for_month(p_month text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_monthly_stats(p_month text, p_location_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_monthly_stats(p_month text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_monthly_trends()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_monthly_trends(p_location_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_monthly_trends_ext(p_location_id text, p_months integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_pending_alerts(p_alert_type text, p_limit integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_recent_reviews(limit_param integer, p_location_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_recent_reviews_with_fallback(limit_param integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_reviews_by_month(p_month text, p_limit integer, p_offset integer, p_location_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_reviews_by_month(p_month text, p_limit integer, p_offset integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_reviews_by_month(p_month text, p_location_id text, p_limit integer, p_offset integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_reviews_stats()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.get_reviews_stats(p_location_id text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.match_review_collaborators(p_review_id text, p_review_comment text, p_target_collaborator bigint, p_context_window integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.normalize_unaccent_lower(text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.persist_reviews_atomic(p_new_reviews jsonb[], p_updated_reviews jsonb[], p_location_id text, p_run_id bigint)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.process_collaborator_mentions()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.process_review_collaborator_jobs(p_limit integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.refresh_monthly_view()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.reprocess_reviews_for_collaborator(p_collaborator_id bigint)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.reviews_match_collaborators_trigger()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.reviews_set_tsv()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.search_reviews(p_search_term text, p_location_id text, p_limit integer)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.set_updated_at()",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  },
+  {
+    "signature": "public.update_location_metrics(location_id_param text)",
+    "anon_can_execute": "true",
+    "authed_can_execute": "true"
+  }
+]

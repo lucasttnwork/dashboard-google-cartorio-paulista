@@ -1,0 +1,14 @@
+{
+  "captured_at_utc": "2026-04-09T21:14:06.129396+00:00",
+  "project_ref": "bugpetfkyoraidyxmzxu",
+  "purpose": "Pre-apply targeted backup for Phase 0 T0.9 (migrations 20260409120100-400)",
+  "backed_up": [
+    "public_policies_pre_apply.json",
+    "gbp_locations_pre_apply.json",
+    "reviews_count_by_location_pre_apply.json",
+    "archive_tables_row_counts_pre_apply.json",
+    "user_fn_grants_pre_apply.json"
+  ],
+  "note": "Schema DDL is already captured in supabase/migrations/20260409120000_baseline.sql. This backup covers DYNAMIC state that the migrations modify.",
+  "rollback_plan": "See CHECKPOINT.md and rollback_plan.sql (reverse migrations) if T0.9 introduces regressions."
+}
