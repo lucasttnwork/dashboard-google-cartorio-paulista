@@ -1,11 +1,17 @@
 __pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
 .venv
 .pytest_cache
 .mypy_cache
 .ruff_cache
-*.pyc
 .env
 .env.*
 !.env.example
-tests
 .git
+.gitignore
+# Note: tests/ is intentionally NOT excluded in Phase -1 so that pytest can
+# run inside the container during validation. Phase 3/5 introduces a
+# multi-stage build that strips tests from the production image.
