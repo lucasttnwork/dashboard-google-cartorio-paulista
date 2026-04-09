@@ -1,0 +1,27 @@
+# Supabase CLI project config for Dashboard Cartório Paulista.
+# Minimal — we do NOT use Supabase as an application runtime.
+# Supabase is the managed Postgres + Auth IdP only.
+# Full CLI docs: https://supabase.com/docs/reference/cli/config
+
+project_id = "bugpetfkyoraidyxmzxu"
+
+[api]
+enabled = false
+
+[db]
+# Local dev database port — only used if `supabase start` is ever run.
+# We prefer hitting Supabase cloud directly for dev.
+port = 54322
+major_version = 16
+
+[studio]
+enabled = false
+
+[auth]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[storage]
+enabled = false

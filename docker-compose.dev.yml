@@ -1,0 +1,60 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: cartorio-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+    container_name: cartorio-backend
+    env_file:
+      - ./backend/.env.local
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/app
+          target: /app/app
+
+  workers:
+    build:
+      context: ./workers
+    container_name: cartorio-workers
+    env_file:
+      - ./workers/.env.local
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "9000:9000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ./workers/app
+          target: /app/app
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+    container_name: cartorio-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
