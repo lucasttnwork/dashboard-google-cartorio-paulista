@@ -49,10 +49,15 @@ Sistema enterprise de monitoramento e análise de avaliações do Google Busines
 
 Requer **Docker 24+** e **docker compose v2**.
 
+> **Setup inicial (uma vez por clone):** ative os git hooks versionados do repositório executando `git config core.hooksPath .githooks`. Isso habilita o `pre-commit` que bloqueia o commit acidental de arquivos `.env*` contendo segredos.
+
 ```bash
 # Clonar e entrar no diretório
 git clone <repo-url>
 cd "Dashboard Google - Cartório Paulista"
+
+# Ativar os git hooks do repositório (uma única vez)
+git config core.hooksPath .githooks
 
 # Copiar templates de env e editar com segredos locais
 cp backend/.env.example backend/.env.local

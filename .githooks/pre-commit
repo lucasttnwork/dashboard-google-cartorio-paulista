@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Pre-commit hook — Phase 0 Security Baseline (T0.2.c)
+#
+# Responsibilities:
+#   1. Reject any staged .env* file (except *.example templates).
+#   2. If gitleaks is available, run it against the staged index.
+#
+# Activate once per clone:
+#   git config core.hooksPath .githooks
+
+set -euo pipefail
+
+# Collect staged files (added, copied, modified) — excludes deletions.
+staged_files="$(git diff --cached --name-only --diff-filter=ACM || true)"
+
+if [ -n "${staged_files}" ]; then
+  # Match .env and .env.<something>, but NOT .env.example / .env.<name>.example.
+  # Regex explained:
+  #   (^|/)          start of path or a directory separator
+  #   \.env          literal ".env"
+  #   ($|\.[^e])     end-of-path OR a dot followed by anything that isn't "e"
+  #                  (so ".env.example" and ".env.docker.example" are allowed
+  #                  because they continue with ".e..." which the hook
+  #                  re-checks below via suffix).
+  offenders="$(printf '%s\n' "${staged_files}" \
+    | grep -E '(^|/)\.env($|\.[^e])' \
+    | grep -Ev '\.example$' \
+    || true)"
+
+  if [ -n "${offenders}" ]; then
+    printf '\n[pre-commit] Refusing to commit env files containing potential secrets:\n' >&2
+    printf '  - %s\n' ${offenders} >&2
+    printf '\nOnly *.example templates may be committed. If this is a template,\n' >&2
+    printf 'rename it to match "*.example" (e.g. .env.docker.example).\n\n' >&2
+    exit 1
+  fi
+fi
+
+# Optional secret scan via gitleaks, when present.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --no-banner
+fi
+
+exit 0
