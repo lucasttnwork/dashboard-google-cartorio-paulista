@@ -463,7 +463,7 @@ export default function ReviewsPage() {
         </Select>
 
         {/* U3: Sort select */}
-        <Select value={sortKey} onValueChange={setSortKey}>
+        <Select value={sortKey} onValueChange={(v) => v && setSortKey(v)}>
           <SelectTrigger className="w-full sm:w-44">
             <span>
               {SORT_OPTIONS.find((o) => o.value === sortKey)?.label ?? 'Mais recentes'}

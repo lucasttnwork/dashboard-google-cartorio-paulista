@@ -199,11 +199,11 @@ export default function CollaboratorsPage() {
           const c = row.original
           return (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="sr-only">Ações</span>
-                </Button>
+              <DropdownMenuTrigger
+                className="inline-flex items-center justify-center rounded-md h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Ações</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem

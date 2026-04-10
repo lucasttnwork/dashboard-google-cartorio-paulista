@@ -1,9 +1,8 @@
 import { Star, TrendingUp, Trophy, UserCircle, Calendar } from 'lucide-react'
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -175,7 +174,7 @@ export default function PerformancePage() {
           <CardContent>
             <p className="text-2xl font-bold tracking-tight">
               {monthlyChart.length > 0
-                ? `${monthlyChart[monthlyChart.length - 1].Menções} menções`
+                ? `${monthlyChart.at(-1)?.Menções ?? 0} menções`
                 : '—'}
             </p>
             <p className="text-xs text-muted-foreground">último mês</p>

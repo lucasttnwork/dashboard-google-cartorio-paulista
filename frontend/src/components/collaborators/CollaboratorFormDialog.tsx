@@ -128,7 +128,7 @@ export function CollaboratorFormDialog({ open, onOpenChange, collaborator, onSuc
           {isEdit && users && (
             <div>
               <Label>Vincular a usuário</Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <Select value={selectedUserId} onValueChange={(v) => setSelectedUserId(v ?? '')}>
                 <SelectTrigger className="w-full">
                   <span>
                     {selectedUserId

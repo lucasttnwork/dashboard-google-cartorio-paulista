@@ -1,4 +1,3 @@
-import type { TooltipProps } from 'recharts'
 import { formatNumber, formatDecimal, MONTHS_PT } from '@/lib/format'
 
 interface PayloadEntry {
@@ -6,6 +5,12 @@ interface PayloadEntry {
   value: number
   color: string
   dataKey: string
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: PayloadEntry[]
+  label?: string
 }
 
 /**
@@ -16,10 +21,9 @@ export function CustomTooltip({
   active,
   payload,
   label,
-}: TooltipProps<number, string>) {
+}: CustomTooltipProps) {
   if (!active || !payload?.length) return null
 
-  // Format the label — if it looks like "2026-01" parse as month
   const formattedLabel = formatLabel(label)
 
   return (
@@ -28,7 +32,7 @@ export function CustomTooltip({
         {formattedLabel}
       </p>
       <div className="space-y-1">
-        {(payload as PayloadEntry[]).map((entry) => (
+        {payload.map((entry) => (
           <div key={entry.dataKey} className="flex items-center gap-2 text-sm">
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
@@ -45,19 +49,17 @@ export function CustomTooltip({
   )
 }
 
-function formatLabel(label: unknown): string {
-  if (typeof label !== 'string') return String(label ?? '')
-  // "2026-01" → "Jan 2026"
+function formatLabel(label: string | undefined): string {
+  if (!label) return ''
   const match = label.match(/^(\d{4})-(\d{2})$/)
   if (match) {
-    const monthIdx = parseInt(match[2], 10) - 1
+    const monthIdx = parseInt(match[2]!, 10) - 1
     return `${MONTHS_PT[monthIdx]} ${match[1]}`
   }
   return label
 }
 
 function formatValue(dataKey: string, value: number): string {
-  // Keys containing "avg" or "rating" are decimals
   if (/avg|rating|nota/i.test(dataKey)) return formatDecimal(value)
   return formatNumber(value)
 }

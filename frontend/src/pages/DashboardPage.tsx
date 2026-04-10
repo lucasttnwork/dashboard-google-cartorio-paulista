@@ -158,38 +158,6 @@ function kpiValues(overview: MetricsOverview | undefined) {
 }
 
 // ---------------------------------------------------------------------------
-// Custom recharts tooltip
-// ---------------------------------------------------------------------------
-
-interface ChartPayloadItem {
-  name?: string
-  value?: number
-  color?: string
-  dataKey?: string
-}
-
-interface CustomTooltipProps {
-  active?: boolean
-  payload?: ChartPayloadItem[]
-  label?: string
-}
-
-function ChartTooltip({ active, payload, label }: CustomTooltipProps) {
-  if (!active || !payload?.length) return null
-
-  return (
-    <div className="rounded-lg border bg-card px-3 py-2 text-sm shadow-sm">
-      <p className="mb-1 font-medium">{label}</p>
-      {payload.map((entry) => (
-        <p key={entry.dataKey} style={{ color: entry.color }}>
-          {entry.name}: {typeof entry.value === 'number' ? formatDecimal(entry.value) : entry.value}
-        </p>
-      ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Chart section
 // ---------------------------------------------------------------------------
 
