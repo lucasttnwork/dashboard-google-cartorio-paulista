@@ -12,7 +12,7 @@ enabled = false
 # Local dev database port — only used if `supabase start` is ever run.
 # We prefer hitting Supabase cloud directly for dev.
 port = 54322
-major_version = 16
+major_version = 17
 
 [studio]
 enabled = false
