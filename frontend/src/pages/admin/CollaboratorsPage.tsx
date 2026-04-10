@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowUpDown, Download, Merge, Pencil, Plus, Power, Upload } from 'lucide-react'
+import { ArrowUpDown, Download, Merge, MoreHorizontal, Pencil, Plus, Power, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +40,9 @@ import {
   importCollaboratorsCSV,
 } from '@/lib/api/collaborators'
 import type { Collaborator } from '@/types/collaborator'
+import { toTitleCase, formatNumber } from '@/lib/format'
+
+const MAX_VISIBLE_ALIASES = 3
 
 export default function CollaboratorsPage() {
   const [search, setSearch] = useState('')
@@ -133,16 +136,26 @@ export default function CollaboratorsPage() {
             Nome <ArrowUpDown className="ml-1 h-3 w-3" />
           </Button>
         ),
-        cell: ({ row }) => (
-          <div>
-            <span className="font-medium">{row.original.full_name}</span>
-            {row.original.aliases.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {row.original.aliases.join(', ')}
-              </p>
-            )}
-          </div>
-        ),
+        cell: ({ row }) => {
+          const aliases = row.original.aliases
+          const visible = aliases.slice(0, MAX_VISIBLE_ALIASES)
+          const remaining = aliases.length - MAX_VISIBLE_ALIASES
+          return (
+            <div className="min-w-[160px]">
+              <span className="font-medium">{toTitleCase(row.original.full_name)}</span>
+              {visible.length > 0 && (
+                <p className="text-xs text-muted-foreground truncate max-w-[240px]">
+                  {visible.map(toTitleCase).join(', ')}
+                  {remaining > 0 && (
+                    <span className="ml-1 inline-flex items-center rounded bg-muted px-1 py-0.5 text-[10px] font-medium">
+                      +{remaining} mais
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          )
+        },
       },
       {
         accessorKey: 'department',
@@ -166,7 +179,7 @@ export default function CollaboratorsPage() {
           </Button>
         ),
         cell: ({ getValue }) => (
-          <Badge variant="secondary">{getValue() as number}</Badge>
+          <Badge variant="secondary">{formatNumber(getValue() as number)}</Badge>
         ),
       },
       {
@@ -186,10 +199,11 @@ export default function CollaboratorsPage() {
           const c = row.original
           return (
             <DropdownMenu>
-              <DropdownMenuTrigger
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-3"
-              >
-                Ações
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Ações</span>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
@@ -281,7 +295,7 @@ export default function CollaboratorsPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (

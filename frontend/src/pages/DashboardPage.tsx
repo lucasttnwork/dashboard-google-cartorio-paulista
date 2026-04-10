@@ -28,6 +28,9 @@ import {
   useCollaboratorMentions,
 } from '@/hooks/use-metrics'
 import type { MetricsOverview } from '@/types/metrics'
+import { toTitleCase } from '@/lib/format'
+import { CHART_COLORS } from '@/lib/chart-config'
+import { CustomTooltip as PremiumTooltip } from '@/components/charts/CustomTooltip'
 import {
   Card,
   CardContent,
@@ -88,9 +91,11 @@ interface KpiCardProps {
   icon: ComponentType<{ className?: string }>
   isLoading: boolean
   isError: boolean
+  tooltip?: string
+  muted?: boolean
 }
 
-function KpiCard({ title, value, icon: Icon, isLoading, isError }: KpiCardProps) {
+function KpiCard({ title, value, icon: Icon, isLoading, isError, tooltip, muted }: KpiCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -103,9 +108,14 @@ function KpiCard({ title, value, icon: Icon, isLoading, isError }: KpiCardProps)
         {isLoading ? (
           <Skeleton className="h-8 w-24" />
         ) : (
-          <p className="text-2xl font-bold tracking-tight">
-            {isError ? '\u2014' : value}
-          </p>
+          <div>
+            <p className={`font-bold tracking-tight ${muted ? 'text-base text-muted-foreground' : 'text-2xl'}`}>
+              {isError ? '\u2014' : value}
+            </p>
+            {tooltip && (
+              <p className="mt-1 text-xs text-muted-foreground">{tooltip}</p>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -118,19 +128,26 @@ function KpiCard({ title, value, icon: Icon, isLoading, isError }: KpiCardProps)
 
 function kpiValues(overview: MetricsOverview | undefined) {
   if (!overview) {
-    return { total: '\u2014', avg: '\u2014', fiveStar: '\u2014', enotariado: '\u2014' }
+    return {
+      total: '\u2014',
+      avg: '\u2014',
+      fiveStar: '\u2014',
+      enotariado: '\u2014',
+      enotariadoPending: false,
+    }
   }
 
-  const enotariadoPct =
-    overview.total_reviews > 0
-      ? (overview.total_enotariado / overview.total_reviews) * 100
-      : 0
+  const hasEnotariado = overview.total_enotariado > 0
+  const enotariadoPct = hasEnotariado
+    ? (overview.total_enotariado / overview.total_reviews) * 100
+    : 0
 
   return {
     total: formatNumber(overview.total_reviews),
     avg: formatDecimal(overview.avg_rating),
     fiveStar: formatPercent(overview.five_star_pct),
-    enotariado: formatPercent(enotariadoPct),
+    enotariado: hasEnotariado ? formatPercent(enotariadoPct) : 'Classificação pendente',
+    enotariadoPending: !hasEnotariado,
   }
 }
 
@@ -219,16 +236,18 @@ function ReviewsChart({
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.gridLine} />
             <XAxis
               dataKey="name"
               tick={{ fontSize: 12 }}
               className="fill-muted-foreground"
+              tickLine={false}
             />
             <YAxis
               yAxisId="left"
               tick={{ fontSize: 12 }}
               className="fill-muted-foreground"
+              tickLine={false}
             />
             <YAxis
               yAxisId="right"
@@ -236,13 +255,14 @@ function ReviewsChart({
               domain={[0, 5]}
               tick={{ fontSize: 12 }}
               className="fill-muted-foreground"
+              tickLine={false}
             />
-            <Tooltip content={<ChartTooltip />} />
+            <Tooltip content={<PremiumTooltip />} />
             <Legend />
             <Bar
               yAxisId="left"
               dataKey="Avaliações"
-              fill="hsl(var(--primary))"
+              fill={CHART_COLORS.blue}
               radius={[4, 4, 0, 0]}
               maxBarSize={40}
             />
@@ -250,7 +270,7 @@ function ReviewsChart({
               yAxisId="right"
               type="monotone"
               dataKey="Nota Média"
-              stroke="hsl(var(--chart-2, 160 60% 45%))"
+              stroke={CHART_COLORS.amber}
               strokeWidth={2}
               dot={{ r: 3 }}
               activeDot={{ r: 5 }}
@@ -302,6 +322,11 @@ function RatingTrendChart({
     'Nota Média': d.avg_rating,
   }))
 
+  // D3: Dynamic Y-axis range based on actual data (not fixed 0-5)
+  const ratings = data.map((d) => d.avg_rating).filter((r) => r > 0)
+  const minRating = ratings.length > 0 ? Math.min(...ratings) : 0
+  const yMin = Math.max(0, Math.floor((minRating - 0.3) * 10) / 10)
+
   return (
     <Card className="col-span-full lg:col-span-1">
       <CardHeader>
@@ -310,22 +335,24 @@ function RatingTrendChart({
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.gridLine} />
             <XAxis
               dataKey="name"
               tick={{ fontSize: 12 }}
               className="fill-muted-foreground"
+              tickLine={false}
             />
             <YAxis
-              domain={[0, 5]}
+              domain={[yMin, 5]}
               tick={{ fontSize: 12 }}
               className="fill-muted-foreground"
+              tickLine={false}
             />
-            <Tooltip content={<ChartTooltip />} />
+            <Tooltip content={<PremiumTooltip />} />
             <Line
               type="monotone"
               dataKey="Nota Média"
-              stroke="hsl(var(--chart-2, 160 60% 45%))"
+              stroke={CHART_COLORS.amber}
               strokeWidth={2}
               dot={{ r: 3 }}
               activeDot={{ r: 5 }}
@@ -385,7 +412,7 @@ function CollaboratorsTable({
             <TableBody>
               {collaborators.map((c) => (
                 <TableRow key={c.full_name}>
-                  <TableCell className="font-medium">{c.full_name}</TableCell>
+                  <TableCell className="font-medium">{toTitleCase(c.full_name)}</TableCell>
                   <TableCell className="text-right">
                     {formatNumber(c.total_mentions)}
                   </TableCell>
@@ -468,6 +495,8 @@ export default function DashboardPage() {
           icon={MessageSquare}
           isLoading={overview.isLoading}
           isError={overview.isError}
+          muted={kpi.enotariadoPending}
+          tooltip={kpi.enotariadoPending ? 'O classificador automático ainda não foi executado.' : undefined}
         />
       </div>
 

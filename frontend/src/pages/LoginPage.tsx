@@ -64,56 +64,70 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Entrar</CardTitle>
-          <CardDescription>Dashboard Cartorio Paulista</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="admin@cartorio.com"
-                autoComplete="email"
-                {...register('email')}
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
-              )}
-            </div>
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+      <div className="w-full max-w-sm space-y-8">
+        {/* Branding */}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Cartório Paulista</h1>
+          <p className="text-sm text-muted-foreground">
+            Painel de Avaliações do Google
+          </p>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                {...register('password')}
-              />
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password.message}</p>
-              )}
-            </div>
+        <Card className="shadow-sm">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-lg">Entrar</CardTitle>
+            <CardDescription>Acesse com suas credenciais</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  autoComplete="email"
+                  {...register('email')}
+                />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email.message}</p>
+                )}
+              </div>
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? 'Entrando...' : 'Entrar'}
-            </Button>
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  {...register('password')}
+                />
+                {errors.password && (
+                  <p className="text-sm text-destructive">{errors.password.message}</p>
+                )}
+              </div>
 
-            <div className="text-center text-sm">
-              <Link
-                to="/forgot-password"
-                className="text-muted-foreground underline-offset-4 hover:underline"
-              >
-                Esqueci minha senha
-              </Link>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting ? 'Entrando...' : 'Entrar'}
+              </Button>
+
+              <div className="text-center text-sm">
+                <Link
+                  to="/forgot-password"
+                  className="text-muted-foreground underline-offset-4 hover:underline"
+                >
+                  Esqueci minha senha
+                </Link>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-xs text-muted-foreground/60">
+          Cartório Paulista &mdash; Monitoramento de Avaliações
+        </p>
+      </div>
     </div>
   )
 }

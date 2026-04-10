@@ -62,8 +62,8 @@ function formatTotal(n: number): string {
 }
 
 function SentimentBadge({ sentiment }: { sentiment: string | null }) {
-  if (!sentiment || sentiment === 'unknown')
-    return <Badge variant="outline">Sem classificação</Badge>
+  // D2: Hide badge entirely when no classification exists
+  if (!sentiment || sentiment === 'unknown') return null
 
   const map: Record<string, { label: string; className: string }> = {
     pos: {
@@ -130,7 +130,7 @@ function ReviewCard({
 
   return (
     <Card
-      className="cursor-pointer transition-colors hover:bg-muted/50"
+      className="cursor-pointer transition-all hover:shadow-md hover:border-primary/20"
       onClick={onClick}
     >
       <CardHeader className="pb-3">
@@ -166,7 +166,7 @@ function ReviewCard({
           )}
           {review.collaborator_names.length > 0 &&
             review.collaborator_names.map((name) => (
-              <Badge key={name} variant="secondary" className="text-xs">
+              <Badge key={name} variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                 {name}
               </Badge>
             ))}

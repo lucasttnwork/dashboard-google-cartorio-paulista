@@ -37,6 +37,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useTrends, useCollaboratorMentions } from '@/hooks/use-metrics'
+import { toTitleCase } from '@/lib/format'
+import { CHART_COLORS } from '@/lib/chart-config'
+import { CustomTooltip as PremiumTooltip } from '@/components/charts/CustomTooltip'
 
 // ---------------------------------------------------------------------------
 // Formatters
@@ -62,27 +65,6 @@ function formatDecimal(n: number | null, digits = 2): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })
-}
-
-// ---------------------------------------------------------------------------
-// Custom Tooltip
-// ---------------------------------------------------------------------------
-
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-lg border bg-card p-3 shadow-md">
-      <p className="mb-1 text-sm font-medium">{label}</p>
-      {payload.map((entry: any) => (
-        <p key={entry.name} className="text-sm" style={{ color: entry.color }}>
-          {entry.name}:{' '}
-          {typeof entry.value === 'number'
-            ? formatDecimal(entry.value)
-            : entry.value}
-        </p>
-      ))}
-    </div>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +152,7 @@ export default function AnalyticsPage() {
           ) : (
             <ResponsiveContainer width="100%" height={350}>
               <ComposedChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.gridLine} />
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 12 }}
@@ -201,22 +183,22 @@ export default function AnalyticsPage() {
                     style: { fontSize: 12, fill: 'var(--color-muted-foreground)' },
                   }}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<PremiumTooltip />} />
                 <Legend />
                 <Bar
                   yAxisId="left"
                   dataKey="total_reviews"
                   name="Avaliações"
-                  fill="hsl(210 80% 65%)"
+                  fill={CHART_COLORS.blue}
                   radius={[4, 4, 0, 0]}
-                  opacity={0.7}
+                  opacity={0.85}
                 />
                 <Line
                   yAxisId="right"
                   type="monotone"
                   dataKey="avg_rating"
                   name="Nota média"
-                  stroke="hsl(35 95% 55%)"
+                  stroke={CHART_COLORS.amber}
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   activeDot={{ r: 5 }}
@@ -228,57 +210,70 @@ export default function AnalyticsPage() {
       </Card>
 
       {/* ----------------------------------------------------------------- */}
-      {/* Section 2: E-notariado vs. Outras                                 */}
+      {/* Section 2: E-notariado vs. Outras (D4: hidden when no data)       */}
       {/* ----------------------------------------------------------------- */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Avaliações E-notariado vs. Outras
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {trends.isLoading ? (
-            <Skeleton className="h-[300px] w-full" />
-          ) : trends.isError ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              Não foi possível carregar o gráfico.
-            </p>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 12 }}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 12 }}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar
-                  dataKey="reviews_enotariado"
-                  name="E-notariado"
-                  stackId="stack"
-                  fill="hsl(150 60% 45%)"
-                  radius={[0, 0, 0, 0]}
-                />
-                <Bar
-                  dataKey="other_reviews"
-                  name="Outras"
-                  stackId="stack"
-                  fill="hsl(220 10% 70%)"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+      {(() => {
+        const hasEnotariado = chartData.some((d) => d.reviews_enotariado > 0)
+        return hasEnotariado ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Avaliações E-notariado vs. Outras
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {trends.isLoading ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : trends.isError ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Não foi possível carregar o gráfico.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<PremiumTooltip />} />
+                    <Legend />
+                    <Bar
+                      dataKey="reviews_enotariado"
+                      name="E-notariado"
+                      stackId="stack"
+                      fill={CHART_COLORS.green}
+                      radius={[0, 0, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="other_reviews"
+                      name="Outras"
+                      stackId="stack"
+                      fill={CHART_COLORS.gray}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        ) : !trends.isLoading ? (
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-sm text-muted-foreground">
+                A classificação E-notariado será exibida após a execução do classificador automático.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null
+      })()}
 
       {/* ----------------------------------------------------------------- */}
       {/* Section 3: Desempenho dos Colaboradores                           */}
@@ -340,7 +335,7 @@ export default function AnalyticsPage() {
                     <TableCell className="font-medium text-muted-foreground">
                       {idx + 1}
                     </TableCell>
-                    <TableCell className="font-medium">{c.full_name}</TableCell>
+                    <TableCell className="font-medium">{toTitleCase(c.full_name)}</TableCell>
                     <TableCell>{formatNumber(c.total_mentions)}</TableCell>
                     <TableCell>
                       {formatDecimal(c.avg_rating_mentioned)}
