@@ -9,7 +9,44 @@ export const mockUser = {
   created_at: '2026-04-10T00:00:00Z',
 }
 
+export const mockCollaborators = [
+  {
+    id: 1,
+    full_name: 'Ana Silva',
+    aliases: ['Aninha'],
+    department: 'E-notariado',
+    position: 'Atendente',
+    is_active: true,
+    mention_count: 12,
+    created_at: '2026-04-01T00:00:00Z',
+    updated_at: '2026-04-01T00:00:00Z',
+  },
+  {
+    id: 2,
+    full_name: 'Bruno Costa',
+    aliases: [],
+    department: 'Registro',
+    position: 'Escrevente',
+    is_active: true,
+    mention_count: 5,
+    created_at: '2026-04-02T00:00:00Z',
+    updated_at: '2026-04-02T00:00:00Z',
+  },
+  {
+    id: 3,
+    full_name: 'Carlos Inativo',
+    aliases: ['Carlão'],
+    department: null,
+    position: null,
+    is_active: false,
+    mention_count: 0,
+    created_at: '2026-03-01T00:00:00Z',
+    updated_at: '2026-03-15T00:00:00Z',
+  },
+]
+
 export const handlers = [
+  // ---- Auth ----
   http.get(`${API}/api/v1/auth/me`, () => {
     return HttpResponse.json({
       ...mockUser,
@@ -48,5 +85,45 @@ export const handlers = [
       return HttpResponse.json({ detail: 'weak_password' }, { status: 400 })
     }
     return HttpResponse.json({ ok: true })
+  }),
+
+  // ---- Collaborators ----
+  http.get(`${API}/api/v1/collaborators`, ({ request }) => {
+    const url = new URL(request.url)
+    const includeInactive = url.searchParams.get('include_inactive') === 'true'
+    const items = includeInactive
+      ? mockCollaborators
+      : mockCollaborators.filter((c) => c.is_active)
+    return HttpResponse.json({
+      items,
+      total: items.length,
+      page: 1,
+      page_size: 200,
+    })
+  }),
+
+  http.post(`${API}/api/v1/collaborators`, async ({ request }) => {
+    const body = (await request.json()) as { full_name: string; aliases?: string[]; department?: string | null; position?: string | null }
+    return HttpResponse.json({
+      id: 99,
+      full_name: body.full_name,
+      aliases: body.aliases ?? [],
+      department: body.department ?? null,
+      position: body.position ?? null,
+      is_active: true,
+      mention_count: 0,
+      created_at: '2026-04-10T00:00:00Z',
+      updated_at: '2026-04-10T00:00:00Z',
+    }, { status: 201 })
+  }),
+
+  http.post(`${API}/api/v1/collaborators/merge`, async ({ request }) => {
+    const body = (await request.json()) as { source_id: number; target_id: number }
+    return HttpResponse.json({
+      target_id: body.target_id,
+      mentions_transferred: 12,
+      aliases_added: ['Ana Silva', 'Aninha'],
+      source_deactivated: true,
+    })
   }),
 ]
