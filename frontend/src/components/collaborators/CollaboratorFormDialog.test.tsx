@@ -1,8 +1,16 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CollaboratorFormDialog } from './CollaboratorFormDialog'
 
 const noop = () => {}
+
+function createWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  )
+}
 
 describe('CollaboratorFormDialog', () => {
   it('renders create form with empty fields', () => {
@@ -13,6 +21,7 @@ describe('CollaboratorFormDialog', () => {
         collaborator={null}
         onSuccess={noop}
       />,
+      { wrapper: createWrapper() },
     )
 
     expect(screen.getByText('Novo Colaborador')).toBeInTheDocument()
@@ -32,6 +41,7 @@ describe('CollaboratorFormDialog', () => {
         collaborator={null}
         onSuccess={noop}
       />,
+      { wrapper: createWrapper() },
     )
 
     // Clear the name field to be sure and submit
@@ -52,6 +62,7 @@ describe('CollaboratorFormDialog', () => {
       department: 'E-notariado',
       position: 'Atendente',
       is_active: true,
+      user_id: null,
       mention_count: 12,
       created_at: '2026-04-01T00:00:00Z',
       updated_at: '2026-04-01T00:00:00Z',
@@ -64,6 +75,7 @@ describe('CollaboratorFormDialog', () => {
         collaborator={collaborator}
         onSuccess={noop}
       />,
+      { wrapper: createWrapper() },
     )
 
     expect(screen.getByText('Editar Colaborador')).toBeInTheDocument()

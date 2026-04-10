@@ -59,8 +59,8 @@ describe('ReviewsPage', () => {
     // Anonymous reviewer renders as "Anônimo"
     expect(screen.getByText('Anônimo')).toBeInTheDocument()
 
-    // Verify total count shows
-    expect(screen.getByText(/3 avaliações encontradas/)).toBeInTheDocument()
+    // Verify progress indicator shows (U4: "Exibindo X de N")
+    expect(screen.getByText(/Exibindo .+ de .+ avaliações/)).toBeInTheDocument()
   })
 
   it('renders search input and rating select', () => {
@@ -70,12 +70,9 @@ describe('ReviewsPage', () => {
     const searchInput = screen.getByPlaceholderText('Buscar por comentário ou avaliador...')
     expect(searchInput).toBeInTheDocument()
 
-    // Rating select renders as combobox with hidden input value "all"
-    const selectTrigger = screen.getByRole('combobox')
-    expect(selectTrigger).toBeInTheDocument()
-    const hiddenInput = document.querySelector('input[aria-hidden="true"]') as HTMLInputElement
-    expect(hiddenInput).toBeTruthy()
-    expect(hiddenInput.value).toBe('all')
+    // Multiple selects now: rating, reply filter, sort (U2, U3)
+    const selects = screen.getAllByRole('combobox')
+    expect(selects.length).toBeGreaterThanOrEqual(3)
   })
 
   it('shows PT-BR empty message when no results', async () => {

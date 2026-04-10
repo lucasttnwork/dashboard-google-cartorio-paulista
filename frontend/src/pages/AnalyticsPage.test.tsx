@@ -63,7 +63,10 @@ describe('AnalyticsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Tendência da Nota Média')).toBeInTheDocument()
     })
-    expect(screen.getByText('Avaliações E-notariado vs. Outras')).toBeInTheDocument()
+    // D4: E-notariado section visible because mock data has reviews_enotariado > 0
+    await waitFor(() => {
+      expect(screen.getByText('Avaliações E-notariado vs. Outras')).toBeInTheDocument()
+    })
   })
 
   it('renders collaborator performance table', async () => {
