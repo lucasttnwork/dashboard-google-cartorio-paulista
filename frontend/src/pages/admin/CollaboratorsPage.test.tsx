@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/mocks/server'
 import { useAuthStore } from '@/lib/auth/store'
@@ -18,10 +19,15 @@ if (typeof window.PointerEvent === 'undefined') {
 }
 
 function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
-    <MemoryRouter initialEntries={['/admin/collaborators']}>
-      <CollaboratorsPage />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/admin/collaborators']}>
+        <CollaboratorsPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 

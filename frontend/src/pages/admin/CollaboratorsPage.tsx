@@ -352,14 +352,14 @@ export default function CollaboratorsPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         collaborator={editTarget}
-        onSuccess={loadData}
+        onSuccess={invalidate}
       />
 
       <MergeDialog
         open={mergeOpen}
         onOpenChange={setMergeOpen}
         collaborators={data}
-        onSuccess={loadData}
+        onSuccess={invalidate}
       />
     </div>
   )

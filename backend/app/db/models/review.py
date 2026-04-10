@@ -95,7 +95,7 @@ class Review(Base):
         viewonly=True,
     )
 
-    mentions: Mapped[list] = relationship(
+    mentions: Mapped[list["ReviewCollaborator"]] = relationship(
         "ReviewCollaborator",
         primaryjoin="Review.review_id == foreign(ReviewCollaborator.review_id)",
         lazy="selectin",
