@@ -6,8 +6,8 @@ describe('collaborators API client', () => {
   it('fetchCollaborators returns paginated data', async () => {
     const result = await fetchCollaborators({ page_size: 200 })
     expect(result.items).toHaveLength(2) // default: only active
-    expect(result.items[0].full_name).toBe('Ana Silva')
-    expect(result.items[1].full_name).toBe('Bruno Costa')
+    expect(result.items[0]!.full_name).toBe('Ana Silva')
+    expect(result.items[1]!.full_name).toBe('Bruno Costa')
     expect(result.total).toBe(2)
     expect(result.page).toBe(1)
   })

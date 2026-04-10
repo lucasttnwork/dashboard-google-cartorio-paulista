@@ -144,47 +144,13 @@ async def get_trends(
 ) -> TrendsOut:
     """Return monthly aggregated trends.
 
-    Tries the ``mv_monthly`` materialized view first for speed.  Falls back
-    to a live ``GROUP BY`` query when the view is empty or missing.
+    Uses a live ``GROUP BY`` query for accuracy.  The ``mv_monthly``
+    materialized view is not used because it may be stale (no automatic
+    refresh until Phase 4 adds an arq task for it).
     """
     data: list[MonthData] = []
 
-    # --- Attempt: materialized view ------------------------------------
-    try:
-        mv_sql = text(
-            "SELECT month, total_reviews, avg_rating, "
-            "       reviews_enotariado, avg_rating_enotariado "
-            "FROM mv_monthly "
-            "WHERE month >= current_date - interval '1 month' * :months "
-            + ("AND location_id = :loc " if location_id else "")
-            + "ORDER BY month"
-        )
-        params: dict[str, object] = {"months": months}
-        if location_id:
-            params["loc"] = location_id
-
-        result = await session.execute(mv_sql, params)
-        rows = result.all()
-
-        if rows:
-            for r in rows:
-                data.append(
-                    MonthData(
-                        month=r[0].isoformat() if hasattr(r[0], "isoformat") else str(r[0]),
-                        total_reviews=int(r[1]),
-                        avg_rating=_round2(r[2]) or 0.0,
-                        reviews_enotariado=int(r[3] or 0),
-                        avg_rating_enotariado=_round2(r[4]),
-                    )
-                )
-            logger.debug("metrics.trends.mv_monthly", count=len(data))
-            return TrendsOut(months=data)
-    except Exception:
-        logger.debug("metrics.trends.mv_monthly_unavailable", exc_info=True)
-        # Ensure session is not broken after the failed statement
-        await session.rollback()
-
-    # --- Fallback: live GROUP BY ---------------------------------------
+    # --- Live GROUP BY (always used) -----------------------------------
     fallback_sql = text(
         "SELECT date_trunc('month', r.create_time) AS month, "
         "       COUNT(*) AS total_reviews, "

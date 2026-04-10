@@ -16,9 +16,17 @@ def get_engine() -> AsyncEngine | None:
     if not settings.database_url:
         return None
 
+    # statement_cache_size=0 is required when connecting through PgBouncer
+    # (Supabase pooler) — asyncpg prepared statements conflict with pooled
+    # connections.
+    connect_args: dict = {}
+    if "pooler.supabase.com" in settings.database_url:
+        connect_args["statement_cache_size"] = 0
+
     return create_async_engine(
         settings.database_url,
         echo=False,
         pool_pre_ping=True,
         future=True,
+        connect_args=connect_args,
     )

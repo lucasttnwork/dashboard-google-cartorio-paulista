@@ -34,7 +34,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 
 /* ---------- helpers ---------- */
@@ -411,7 +410,9 @@ export default function ReviewsPage() {
           onValueChange={(v) => setRating(v === 'all' ? undefined : Number(v))}
         >
           <SelectTrigger className="w-full sm:w-44">
-            <SelectValue placeholder="Todas as notas" />
+            <span>
+              {RATING_OPTIONS.find((o) => o.value === (rating !== undefined ? String(rating) : 'all'))?.label ?? 'Todas as notas'}
+            </span>
           </SelectTrigger>
           <SelectContent>
             {RATING_OPTIONS.map((opt) => (

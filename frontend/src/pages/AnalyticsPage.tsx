@@ -23,7 +23,6 @@ import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
@@ -137,7 +136,9 @@ export default function AnalyticsPage() {
           onValueChange={(v) => setMonths(Number(v))}
         >
           <SelectTrigger className="w-[200px]">
-            <SelectValue />
+            <span>
+              {PERIOD_OPTIONS.find((o) => o.value === String(months))?.label ?? 'Últimos 12 meses'}
+            </span>
           </SelectTrigger>
           <SelectContent>
             {PERIOD_OPTIONS.map((opt) => (

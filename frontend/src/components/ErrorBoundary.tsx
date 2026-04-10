@@ -19,11 +19,11 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true }
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, info)
   }
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center">
