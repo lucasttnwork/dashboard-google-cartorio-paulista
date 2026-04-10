@@ -5,6 +5,7 @@ export interface Collaborator {
   department: string | null
   position: string | null
   is_active: boolean
+  user_id: string | null
   mention_count: number
   created_at: string
   updated_at: string
@@ -30,6 +31,7 @@ export interface CollaboratorUpdate {
   department?: string | null
   position?: string | null
   is_active?: boolean
+  user_id?: string | null
 }
 
 export interface MergeRequest {

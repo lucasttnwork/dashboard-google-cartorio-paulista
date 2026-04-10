@@ -2,6 +2,8 @@ import { apiClient } from './client'
 import type {
   CollaboratorMentionsData,
   MetricsOverview,
+  MyPerformance,
+  SystemUser,
   TrendsData,
 } from '@/types/metrics'
 
@@ -31,5 +33,15 @@ export async function fetchCollaboratorMentions(params?: {
     `${BASE}/collaborator-mentions`,
     { params },
   )
+  return data
+}
+
+export async function fetchMyPerformance(): Promise<MyPerformance> {
+  const { data } = await apiClient.get<MyPerformance>(`${BASE}/my-performance`)
+  return data
+}
+
+export async function fetchSystemUsers(): Promise<SystemUser[]> {
+  const { data } = await apiClient.get<SystemUser[]>('/api/v1/collaborators/admin/users')
   return data
 }

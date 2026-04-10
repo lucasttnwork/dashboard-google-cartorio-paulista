@@ -17,6 +17,7 @@ from app.deps.db import get_session
 from app.schemas.metrics import (
     CollaboratorMentionsOut,
     MetricsOverviewOut,
+    MyPerformanceOut,
     TrendsOut,
 )
 from app.services import metrics_service as svc
@@ -58,3 +59,11 @@ async def get_collaborator_mentions(
     return await svc.get_collaborator_mentions(
         session, months=months, include_inactive=include_inactive
     )
+
+
+@router.get("/my-performance", response_model=MyPerformanceOut)
+async def get_my_performance(
+    user: Authenticated,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> MyPerformanceOut:
+    return await svc.get_my_performance(session, user_id=user.id)

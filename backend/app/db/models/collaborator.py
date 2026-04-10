@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from uuid import UUID
+
 from sqlalchemy import Boolean, DateTime, Float, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.models.user_profile import Base
@@ -29,6 +31,7 @@ class Collaborator(Base):
     )
     position: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    user_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )

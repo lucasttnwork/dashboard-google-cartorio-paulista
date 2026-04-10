@@ -14,8 +14,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.deps.auth import AuthenticatedUser, require_role
 from app.deps.db import get_session
+from app.db.models.user_profile import UserProfile
 from app.schemas.collaborator import (
     CSVImportResponse,
     CollaboratorCreate,
@@ -164,3 +167,33 @@ async def reactivate_collaborator(
     if result is None:
         raise HTTPException(status_code=404, detail="not_found")
     return result
+
+
+@router.get("/admin/users")
+async def list_users(
+    user: AdminOrManager,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    """List all system users with role and email (admin only, for linking)."""
+    stmt = (
+        select(UserProfile.user_id, UserProfile.role, UserProfile.disabled_at)
+        .order_by(UserProfile.role, UserProfile.user_id)
+    )
+    rows = (await session.execute(stmt)).all()
+
+    # Fetch emails from auth.users via raw query (service_role bypasses RLS)
+    from sqlalchemy import text
+    email_rows = (
+        await session.execute(text("SELECT id, email FROM auth.users"))
+    ).all()
+    email_map = {str(r[0]): r[1] for r in email_rows}
+
+    return [
+        {
+            "id": str(r[0]),
+            "email": email_map.get(str(r[0]), ""),
+            "role": r[1],
+            "is_active": r[2] is None,
+        }
+        for r in rows
+    ]

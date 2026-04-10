@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { useSystemUsers } from '@/hooks/use-metrics'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
 import { createCollaborator, updateCollaborator } from '@/lib/api/collaborators'
 import type { Collaborator, CollaboratorCreate } from '@/types/collaborator'
 
@@ -34,6 +41,8 @@ interface Props {
 
 export function CollaboratorFormDialog({ open, onOpenChange, collaborator, onSuccess }: Props) {
   const isEdit = !!collaborator
+  const [selectedUserId, setSelectedUserId] = useState<string>('')
+  const { data: users } = useSystemUsers()
 
   const {
     register,
@@ -52,6 +61,7 @@ export function CollaboratorFormDialog({ open, onOpenChange, collaborator, onSuc
         department: collaborator?.department ?? 'E-notariado',
         position: collaborator?.position ?? '',
       })
+      setSelectedUserId(collaborator?.user_id ?? '')
     }
   }, [open, collaborator, reset])
 
@@ -59,11 +69,14 @@ export function CollaboratorFormDialog({ open, onOpenChange, collaborator, onSuc
     const aliases = data.aliases
       ? data.aliases.split(';').map((a) => a.trim()).filter(Boolean)
       : []
-    const payload: CollaboratorCreate = {
+    const payload: CollaboratorCreate & { user_id?: string | null } = {
       full_name: data.full_name.trim(),
       aliases,
       department: data.department?.trim() || null,
       position: data.position?.trim() || null,
+    }
+    if (isEdit) {
+      payload.user_id = selectedUserId || null
     }
 
     try {
@@ -112,6 +125,31 @@ export function CollaboratorFormDialog({ open, onOpenChange, collaborator, onSuc
             <Label htmlFor="position">Cargo</Label>
             <Input id="position" {...register('position')} />
           </div>
+          {isEdit && users && (
+            <div>
+              <Label>Vincular a usuário</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger className="w-full">
+                  <span>
+                    {selectedUserId
+                      ? users.find((u) => u.id === selectedUserId)?.email ?? 'Selecionar...'
+                      : 'Nenhum vínculo'}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nenhum vínculo</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.email} ({u.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                O usuário vinculado poderá ver suas métricas em "Meu Desempenho"
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar

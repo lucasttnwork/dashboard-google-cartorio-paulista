@@ -20,6 +20,7 @@ from app.schemas.metrics import (
     CollaboratorMonthData,
     MetricsOverviewOut,
     MonthData,
+    MyPerformanceOut,
     TrendsOut,
 )
 
@@ -273,3 +274,128 @@ async def get_collaborator_mentions(
         )
 
     return CollaboratorMentionsOut(collaborators=collaborators)
+
+
+# ---------------------------------------------------------------------------
+# 4. My performance (for linked collaborator)
+# ---------------------------------------------------------------------------
+
+
+async def get_my_performance(
+    session: AsyncSession,
+    *,
+    user_id: str,
+) -> MyPerformanceOut:
+    """Return performance metrics for the collaborator linked to *user_id*."""
+    from uuid import UUID as _UUID
+
+    uid = _UUID(user_id)
+
+    # Find linked collaborator
+    collab_row = (
+        await session.execute(
+            select(Collaborator.id, Collaborator.full_name)
+            .where(Collaborator.user_id == uid)
+        )
+    ).one_or_none()
+
+    if collab_row is None:
+        return MyPerformanceOut(linked=False)
+
+    cid, full_name = collab_row[0], collab_row[1]
+
+    # Total mentions + avg rating
+    stats = (
+        await session.execute(
+            select(
+                func.count(ReviewCollaborator.review_id),
+                func.avg(Review.rating),
+            )
+            .join(Review, Review.review_id == ReviewCollaborator.review_id)
+            .where(ReviewCollaborator.collaborator_id == cid)
+        )
+    ).one()
+    total_mentions = int(stats[0] or 0)
+    avg_rating = _round2(stats[1])
+
+    # Ranking among active collaborators
+    ranking_stmt = (
+        select(
+            ReviewCollaborator.collaborator_id,
+            func.count(ReviewCollaborator.review_id).label("cnt"),
+        )
+        .join(Collaborator, Collaborator.id == ReviewCollaborator.collaborator_id)
+        .where(Collaborator.is_active.is_(True))
+        .group_by(ReviewCollaborator.collaborator_id)
+        .order_by(func.count(ReviewCollaborator.review_id).desc())
+    )
+    ranking_rows = (await session.execute(ranking_stmt)).all()
+    total_collaborators = len(ranking_rows)
+    ranking = next(
+        (i + 1 for i, r in enumerate(ranking_rows) if r[0] == cid),
+        None,
+    )
+
+    # Monthly breakdown (last 12 months)
+    cutoff = text("current_date - interval '12 months'")
+    monthly_stmt = (
+        select(
+            func.date_trunc("month", Review.create_time).label("month"),
+            func.count(ReviewCollaborator.review_id).label("mentions"),
+            func.avg(Review.rating).label("avg_rating"),
+        )
+        .join(Review, Review.review_id == ReviewCollaborator.review_id)
+        .where(
+            ReviewCollaborator.collaborator_id == cid,
+            Review.create_time >= cutoff,
+        )
+        .group_by(text("1"))
+        .order_by(text("1"))
+    )
+    monthly_rows = (await session.execute(monthly_stmt)).all()
+    monthly = [
+        CollaboratorMonthData(
+            month=r[0].isoformat() if hasattr(r[0], "isoformat") else str(r[0]),
+            mentions=int(r[1]),
+            avg_rating=_round2(r[2]),
+        )
+        for r in monthly_rows
+    ]
+
+    # Recent reviews mentioning this collaborator (last 10)
+    recent_stmt = (
+        select(
+            Review.review_id,
+            Review.rating,
+            Review.comment,
+            Review.reviewer_name,
+            Review.create_time,
+        )
+        .join(ReviewCollaborator, ReviewCollaborator.review_id == Review.review_id)
+        .where(ReviewCollaborator.collaborator_id == cid)
+        .order_by(Review.create_time.desc())
+        .limit(10)
+    )
+    recent_rows = (await session.execute(recent_stmt)).all()
+    recent_reviews = [
+        {
+            "review_id": r[0],
+            "rating": r[1],
+            "comment": (r[2] or "")[:200],
+            "reviewer_name": r[3] or "Anônimo",
+            "create_time": r[4].isoformat() if r[4] else None,
+        }
+        for r in recent_rows
+    ]
+
+    return MyPerformanceOut(
+        linked=True,
+        collaborator_id=cid,
+        full_name=full_name,
+        total_mentions=total_mentions,
+        avg_rating=avg_rating,
+        ranking=ranking,
+        total_collaborators=total_collaborators,
+        monthly=monthly,
+        recent_reviews=recent_reviews,
+    )

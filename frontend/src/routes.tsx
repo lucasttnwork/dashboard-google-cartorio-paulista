@@ -16,6 +16,7 @@ import AppLayout from './components/layout/AppLayout'
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
+const PerformancePage = lazy(() => import('./pages/PerformancePage'))
 const CollaboratorsPage = lazy(() => import('./pages/admin/CollaboratorsPage'))
 
 function PageFallback() {
@@ -70,6 +71,14 @@ export const router = createBrowserRouter([
         element: (
           <LazyPage>
             <AnalyticsPage />
+          </LazyPage>
+        ),
+      },
+      {
+        path: '/performance',
+        element: (
+          <LazyPage>
+            <PerformancePage />
           </LazyPage>
         ),
       },

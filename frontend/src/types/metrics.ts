@@ -43,3 +43,28 @@ export interface CollaboratorMention {
 export interface CollaboratorMentionsData {
   collaborators: CollaboratorMention[]
 }
+
+export interface MyPerformance {
+  linked: boolean
+  collaborator_id: number | null
+  full_name: string | null
+  total_mentions: number
+  avg_rating: number | null
+  ranking: number | null
+  total_collaborators: number
+  monthly: CollaboratorMonthData[]
+  recent_reviews: {
+    review_id: string
+    rating: number | null
+    comment: string
+    reviewer_name: string
+    create_time: string | null
+  }[]
+}
+
+export interface SystemUser {
+  id: string
+  email: string
+  role: string
+  is_active: boolean
+}

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   BarChart3,
+  UserCircle,
   Users,
   LogOut,
   Menu,
@@ -19,7 +20,7 @@ const navItems = [
   { to: '/dashboard', label: 'Painel Geral', icon: LayoutDashboard },
   { to: '/reviews', label: 'Avaliações', icon: MessageSquare },
   { to: '/analytics', label: 'Análises', icon: BarChart3 },
-
+  { to: '/performance', label: 'Meu Desempenho', icon: UserCircle },
 ] as const
 
 const adminItems = [

@@ -61,3 +61,17 @@ class CollaboratorMentionsOut(BaseModel):
     """Response wrapper for the collaborator mentions endpoint."""
 
     collaborators: list[CollaboratorMentionOut]
+
+
+class MyPerformanceOut(BaseModel):
+    """Personal performance metrics for a linked collaborator."""
+
+    linked: bool
+    collaborator_id: int | None = None
+    full_name: str | None = None
+    total_mentions: int = 0
+    avg_rating: float | None = None
+    ranking: int | None = None
+    total_collaborators: int = 0
+    monthly: list[CollaboratorMonthData] = []
+    recent_reviews: list[dict] = []

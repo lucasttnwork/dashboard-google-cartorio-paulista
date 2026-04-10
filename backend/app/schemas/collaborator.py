@@ -20,6 +20,7 @@ class CollaboratorUpdate(BaseModel):
     department: str | None = None
     position: str | None = None
     is_active: bool | None = None
+    user_id: str | None = None  # UUID as string, nullable
 
 
 class CollaboratorOut(BaseModel):
@@ -29,6 +30,7 @@ class CollaboratorOut(BaseModel):
     department: str | None
     position: str | None
     is_active: bool
+    user_id: str | None = None
     mention_count: int = 0
     created_at: datetime
     updated_at: datetime

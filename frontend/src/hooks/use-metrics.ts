@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import {
   fetchCollaboratorMentions,
   fetchMetricsOverview,
+  fetchMyPerformance,
+  fetchSystemUsers,
   fetchTrends,
 } from '@/lib/api/metrics'
 
@@ -35,5 +37,21 @@ export function useCollaboratorMentions(params?: {
     queryKey: ['metrics-collaborator-mentions', params],
     queryFn: () => fetchCollaboratorMentions(params),
     staleTime: 60_000,
+  })
+}
+
+export function useMyPerformance() {
+  return useQuery({
+    queryKey: ['my-performance'],
+    queryFn: fetchMyPerformance,
+    staleTime: 60_000,
+  })
+}
+
+export function useSystemUsers() {
+  return useQuery({
+    queryKey: ['system-users'],
+    queryFn: fetchSystemUsers,
+    staleTime: 120_000,
   })
 }
