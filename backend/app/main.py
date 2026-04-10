@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .api.v1 import auth, collaborators, health
+from .api.v1 import auth, collaborators, health, metrics, reviews
 from .core.config import settings
 from .core.logging import configure_logging
 from .core.observability import RequestIdMiddleware, init_sentry
@@ -132,6 +132,8 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1/auth")
 app.include_router(collaborators.router, prefix="/api/v1/collaborators")
+app.include_router(reviews.router, prefix="/api/v1/reviews")
+app.include_router(metrics.router, prefix="/api/v1/metrics")
 if settings.env != "production":
     app.include_router(auth.debug_router, prefix="/api/v1")
 
