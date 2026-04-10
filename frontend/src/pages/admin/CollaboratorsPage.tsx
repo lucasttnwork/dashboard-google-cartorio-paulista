@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   type ColumnDef,
   flexRender,
@@ -8,6 +8,7 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowUpDown, Download, Merge, Pencil, Plus, Power, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -41,42 +42,44 @@ import {
 import type { Collaborator } from '@/types/collaborator'
 
 export default function CollaboratorsPage() {
-  const [data, setData] = useState<Collaborator[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [includeInactive, setIncludeInactive] = useState(false)
   const [sorting, setSorting] = useState<SortingState>([])
   const [formOpen, setFormOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Collaborator | null>(null)
   const [mergeOpen, setMergeOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const queryClient = useQueryClient()
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetchCollaborators({
-        search: search || undefined,
+  // Debounce search input
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300)
+  }
+
+  const { data: queryData, isLoading: loading } = useQuery({
+    queryKey: ['collaborators', debouncedSearch, includeInactive],
+    queryFn: () =>
+      fetchCollaborators({
+        search: debouncedSearch || undefined,
         include_inactive: includeInactive,
         page_size: 200,
-      })
-      setData(res.items)
-    } catch {
-      toast.error('Erro ao carregar colaboradores')
-    } finally {
-      setLoading(false)
-    }
-  }, [search, includeInactive])
+      }),
+    staleTime: 30_000,
+  })
 
-  useEffect(() => {
-    const timer = setTimeout(loadData, 300)
-    return () => clearTimeout(timer)
-  }, [loadData])
+  const data = queryData?.items ?? []
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['collaborators'] })
 
   const handleDeactivate = async (id: number) => {
     try {
       await deleteCollaborator(id)
       toast.success('Colaborador desativado')
-      loadData()
+      invalidate()
     } catch {
       toast.error('Erro ao desativar')
     }
@@ -86,7 +89,7 @@ export default function CollaboratorsPage() {
     try {
       await reactivateCollaborator(id)
       toast.success('Colaborador reativado')
-      loadData()
+      invalidate()
     } catch {
       toast.error('Erro ao reativar')
     }
@@ -110,7 +113,7 @@ export default function CollaboratorsPage() {
       if (result.errors.length > 0) {
         toast.warning(`${result.errors.length} erros na importação`)
       }
-      loadData()
+      invalidate()
     } catch {
       toast.error('Erro ao importar CSV')
     }
@@ -263,7 +266,7 @@ export default function CollaboratorsPage() {
         <Input
           placeholder="Buscar por nome ou alias..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="max-w-sm"
         />
         <div className="flex items-center gap-2">

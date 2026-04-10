@@ -1,11 +1,41 @@
-import { createBrowserRouter, Outlet } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { RequireAuth } from '@/components/auth/RequireAuth'
 import { RequireRole } from '@/components/auth/RequireRole'
-import HealthPage from './pages/HealthPage'
+import { Skeleton } from '@/components/ui/skeleton'
+
+// Public pages (eager — small)
 import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
-import CollaboratorsPage from './pages/admin/CollaboratorsPage'
+
+// Layout (eager — always needed once authenticated)
+import AppLayout from './components/layout/AppLayout'
+
+// Protected pages (lazy — code-split)
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
+const CollaboratorsPage = lazy(() => import('./pages/admin/CollaboratorsPage'))
+
+function PageFallback() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-48" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+      </div>
+      <Skeleton className="h-64" />
+    </div>
+  )
+}
+
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageFallback />}>{children}</Suspense>
+}
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -14,16 +44,42 @@ export const router = createBrowserRouter([
   {
     element: (
       <RequireAuth>
-        <Outlet />
+        <AppLayout />
       </RequireAuth>
     ),
     children: [
-      { path: '/', element: <HealthPage /> },
+      { index: true, element: <Navigate to="/dashboard" replace /> },
+      {
+        path: '/dashboard',
+        element: (
+          <LazyPage>
+            <DashboardPage />
+          </LazyPage>
+        ),
+      },
+      {
+        path: '/reviews',
+        element: (
+          <LazyPage>
+            <ReviewsPage />
+          </LazyPage>
+        ),
+      },
+      {
+        path: '/analytics',
+        element: (
+          <LazyPage>
+            <AnalyticsPage />
+          </LazyPage>
+        ),
+      },
       {
         path: '/admin/collaborators',
         element: (
           <RequireRole allowed={['admin', 'manager']}>
-            <CollaboratorsPage />
+            <LazyPage>
+              <CollaboratorsPage />
+            </LazyPage>
           </RequireRole>
         ),
       },
