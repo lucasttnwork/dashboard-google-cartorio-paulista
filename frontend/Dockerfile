@@ -12,7 +12,9 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 
 ARG VITE_API_BASE_URL
+ARG VITE_SENTRY_DSN
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
 RUN npm run build
 
 # ─── Stage 2: serve ───────────────────────────────────────
