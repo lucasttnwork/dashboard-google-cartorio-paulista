@@ -8,6 +8,7 @@ from arq.worker import create_worker
 from app import health_server
 from app.settings import settings
 from app.tasks.example import example_task
+from app.tasks.reprocess_mentions import reprocess_collaborator_mentions
 
 
 class WorkerSettings:
@@ -19,7 +20,7 @@ class WorkerSettings:
     """
 
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    functions = [example_task]
+    functions = [example_task, reprocess_collaborator_mentions]
     cron_jobs: list = []  # noqa: RUF012 — populated in Phase 4
     on_startup = None
     on_shutdown = None
