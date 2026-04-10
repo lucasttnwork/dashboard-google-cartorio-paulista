@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -38,6 +38,12 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -435,10 +441,27 @@ function CollaboratorsTable({
 // Main page component
 // ---------------------------------------------------------------------------
 
+const PERIOD_OPTIONS = [
+  { value: '3', label: 'Últimos 3 meses' },
+  { value: '6', label: 'Últimos 6 meses' },
+  { value: '12', label: 'Últimos 12 meses' },
+  { value: '60', label: 'Todo o período' },
+] as const
+
+function periodToDates(months: number): { date_from?: string; date_to?: string } {
+  if (months >= 60) return {}
+  const now = new Date()
+  const from = new Date(now.getFullYear(), now.getMonth() - months, 1)
+  return { date_from: from.toISOString().slice(0, 10) }
+}
+
 export default function DashboardPage() {
-  const overview = useMetricsOverview()
-  const trends = useTrends({ months: 12 })
-  const mentions = useCollaboratorMentions({ months: 12 })
+  const [months, setMonths] = useState(12)
+  const dateParams = useMemo(() => periodToDates(months), [months])
+
+  const overview = useMetricsOverview(dateParams)
+  const trends = useTrends({ months })
+  const mentions = useCollaboratorMentions({ months })
 
   // Error toast — fires once when overview fails
   useEffect(() => {
@@ -459,11 +482,27 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Painel Geral</h1>
-        <p className="text-muted-foreground">
-          Visão geral das avaliações do Cartório Paulista
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Painel Geral</h1>
+          <p className="text-muted-foreground">
+            Visão geral das avaliações do Cartório Paulista
+          </p>
+        </div>
+        <Select value={String(months)} onValueChange={(v) => setMonths(Number(v))}>
+          <SelectTrigger className="w-[200px]">
+            <span>
+              {PERIOD_OPTIONS.find((o) => o.value === String(months))?.label ?? 'Últimos 12 meses'}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* KPI cards */}

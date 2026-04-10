@@ -6,6 +6,7 @@ export function useReviews(params: {
   search?: string
   date_from?: string
   date_to?: string
+  has_reply?: boolean
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }) {

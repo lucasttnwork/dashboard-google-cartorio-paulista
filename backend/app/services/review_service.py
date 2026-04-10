@@ -134,6 +134,7 @@ def _apply_filters(
     search: str | None,
     date_from: datetime | None,
     date_to: datetime | None,
+    has_reply: bool | None = None,
 ) -> Select:
     if rating is not None:
         stmt = stmt.where(Review.rating == rating)
@@ -149,6 +150,10 @@ def _apply_filters(
         stmt = stmt.where(Review.create_time >= date_from)
     if date_to is not None:
         stmt = stmt.where(Review.create_time <= date_to)
+    if has_reply is True:
+        stmt = stmt.where(Review.reply_text.isnot(None))
+    elif has_reply is False:
+        stmt = stmt.where(Review.reply_text.is_(None))
     return stmt
 
 
@@ -165,6 +170,7 @@ async def list_reviews(
     search: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    has_reply: bool | None = None,
     sort_by: str = "create_time",
     sort_order: str = "desc",
 ) -> ReviewListResponse:
@@ -179,7 +185,7 @@ async def list_reviews(
         count_stmt: Select = select(func.count()).select_from(Review)
         count_stmt = _apply_filters(
             count_stmt, rating=rating, search=search,
-            date_from=date_from, date_to=date_to,
+            date_from=date_from, date_to=date_to, has_reply=has_reply,
         )
         total = (await session.execute(count_stmt)).scalar() or 0
 
@@ -190,7 +196,7 @@ async def list_reviews(
     )
     stmt = _apply_filters(
         stmt, rating=rating, search=search,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, has_reply=has_reply,
     )
 
     # --- Sorting ---

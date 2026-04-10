@@ -13,6 +13,8 @@ import {
 
 import { useReviews, useReviewDetail } from '@/hooks/use-reviews'
 import type { ReviewOut } from '@/types/review'
+import { ratingBorderClass } from '@/lib/chart-config'
+import { toTitleCase } from '@/lib/format'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -128,12 +130,15 @@ function ReviewCard({
       ? 'Anônimo'
       : review.reviewer_name
 
+  const hasComment = !!review.comment
+  const borderClass = ratingBorderClass(review.rating)
+
   return (
     <Card
-      className="cursor-pointer transition-all hover:shadow-md hover:border-primary/20"
+      className={`cursor-pointer border-l-4 transition-all hover:shadow-md hover:border-primary/20 ${borderClass} ${!hasComment ? 'py-1' : ''}`}
       onClick={onClick}
     >
-      <CardHeader className="pb-3">
+      <CardHeader className={hasComment ? 'pb-3' : 'pb-1 pt-3'}>
         <div className="flex items-center justify-between">
           <Stars rating={review.rating ?? 0} />
           <span className="text-sm text-muted-foreground">
@@ -146,17 +151,17 @@ function ReviewCard({
           {reviewerName}
         </div>
       </CardHeader>
-      <CardContent>
-        {review.comment ? (
+      <CardContent className={!hasComment ? 'pb-3' : undefined}>
+        {hasComment ? (
           <p className="text-sm text-muted-foreground">
             {truncate(review.comment)}
           </p>
         ) : (
-          <p className="text-sm italic text-muted-foreground/60">
+          <p className="text-xs italic text-muted-foreground/50">
             Sem comentário
           </p>
         )}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <SentimentBadge sentiment={review.sentiment} />
           {review.reply_text && (
             <Badge variant="secondary" className="gap-1">
@@ -167,7 +172,7 @@ function ReviewCard({
           {review.collaborator_names.length > 0 &&
             review.collaborator_names.map((name) => (
               <Badge key={name} variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                {name}
+                {toTitleCase(name)}
               </Badge>
             ))}
         </div>
@@ -336,12 +341,29 @@ const RATING_OPTIONS = [
   { value: '1', label: '1 estrela' },
 ]
 
+const REPLY_OPTIONS = [
+  { value: 'all', label: 'Todas' },
+  { value: 'true', label: 'Com resposta' },
+  { value: 'false', label: 'Sem resposta' },
+]
+
+const SORT_OPTIONS = [
+  { value: 'create_time:desc', label: 'Mais recentes' },
+  { value: 'create_time:asc', label: 'Mais antigas' },
+  { value: 'rating:desc', label: 'Maior nota' },
+  { value: 'rating:asc', label: 'Menor nota' },
+]
+
 export default function ReviewsPage() {
   /* filter state */
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [rating, setRating] = useState<number | undefined>(undefined)
+  const [hasReply, setHasReply] = useState<boolean | undefined>(undefined)
+  const [sortKey, setSortKey] = useState('create_time:desc')
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null)
+
+  const [sortBy, sortOrder] = sortKey.split(':') as [string, 'asc' | 'desc']
 
   /* debounce search 300ms */
   useEffect(() => {
@@ -349,12 +371,14 @@ export default function ReviewsPage() {
     return () => clearTimeout(timer)
   }, [search])
 
-  const hasFilters = debouncedSearch !== '' || rating !== undefined
+  const hasFilters = debouncedSearch !== '' || rating !== undefined || hasReply !== undefined
 
   const clearFilters = useCallback(() => {
     setSearch('')
     setDebouncedSearch('')
     setRating(undefined)
+    setHasReply(undefined)
+    setSortKey('create_time:desc')
   }, [])
 
   /* data */
@@ -368,8 +392,9 @@ export default function ReviewsPage() {
   } = useReviews({
     search: debouncedSearch || undefined,
     rating,
-    sort_by: 'create_time',
-    sort_order: 'desc',
+    has_reply: hasReply,
+    sort_by: sortBy,
+    sort_order: sortOrder,
   })
 
   useEffect(() => {
@@ -386,11 +411,6 @@ export default function ReviewsPage() {
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Avaliações</h1>
-        {!isLoading && (
-          <p className="text-sm text-muted-foreground">
-            {formatTotal(total)} avaliações encontradas
-          </p>
-        )}
       </div>
 
       {/* Filters row */}
@@ -409,13 +429,48 @@ export default function ReviewsPage() {
           value={rating !== undefined ? String(rating) : 'all'}
           onValueChange={(v) => setRating(v === 'all' ? undefined : Number(v))}
         >
-          <SelectTrigger className="w-full sm:w-44">
+          <SelectTrigger className="w-full sm:w-40">
             <span>
               {RATING_OPTIONS.find((o) => o.value === (rating !== undefined ? String(rating) : 'all'))?.label ?? 'Todas as notas'}
             </span>
           </SelectTrigger>
           <SelectContent>
             {RATING_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* U2: Reply filter */}
+        <Select
+          value={hasReply !== undefined ? String(hasReply) : 'all'}
+          onValueChange={(v) => setHasReply(v === 'all' ? undefined : v === 'true')}
+        >
+          <SelectTrigger className="w-full sm:w-40">
+            <span>
+              {REPLY_OPTIONS.find((o) => o.value === (hasReply !== undefined ? String(hasReply) : 'all'))?.label ?? 'Todas'}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {REPLY_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* U3: Sort select */}
+        <Select value={sortKey} onValueChange={setSortKey}>
+          <SelectTrigger className="w-full sm:w-44">
+            <span>
+              {SORT_OPTIONS.find((o) => o.value === sortKey)?.label ?? 'Mais recentes'}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
@@ -430,6 +485,13 @@ export default function ReviewsPage() {
           </Button>
         )}
       </div>
+
+      {/* U4: Progress indicator */}
+      {!isLoading && total > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Exibindo {formatTotal(allReviews.length)} de {formatTotal(total)} avaliações
+        </p>
+      )}
 
       {/* Reviews list */}
       <div className="space-y-3">
