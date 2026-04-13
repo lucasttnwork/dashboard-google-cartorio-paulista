@@ -14,7 +14,7 @@ export async function fetchReviews(params: {
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }): Promise<ReviewListResponse> {
-  const { data } = await apiClient.get<ReviewListResponse>(BASE, { params })
+  const { data } = await apiClient.get<ReviewListResponse>(`${BASE}/`, { params })
   return data
 }
 

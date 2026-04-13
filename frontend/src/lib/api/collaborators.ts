@@ -19,7 +19,7 @@ export async function fetchCollaborators(params: {
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }): Promise<CollaboratorListResponse> {
-  const { data } = await apiClient.get<CollaboratorListResponse>(BASE, { params })
+  const { data } = await apiClient.get<CollaboratorListResponse>(`${BASE}/`, { params })
   return data
 }
 
@@ -29,7 +29,7 @@ export async function fetchCollaborator(id: number): Promise<Collaborator> {
 }
 
 export async function createCollaborator(body: CollaboratorCreate): Promise<Collaborator> {
-  const { data } = await apiClient.post<Collaborator>(BASE, body)
+  const { data } = await apiClient.post<Collaborator>(`${BASE}/`, body)
   return data
 }
 

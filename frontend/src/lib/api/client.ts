@@ -2,7 +2,7 @@ import axios, { type AxiosError } from 'axios'
 import { useAuthStore } from '@/lib/auth/store'
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || undefined,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

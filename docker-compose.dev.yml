@@ -52,7 +52,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: http://localhost:8000
+        VITE_API_BASE_URL: ""
     container_name: cartorio-frontend
     ports:
       - "3000:80"
