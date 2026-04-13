@@ -1,0 +1,28 @@
+# Enforce LF line endings across the repo, regardless of OS.
+# Prevents CRLF noise when files are touched by Windows editors (WSL mounts).
+* text=auto eol=lf
+
+# Scripts that must stay LF for POSIX shells and Docker entrypoints.
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Explicit binary types (defensive — prevents accidental text conversion).
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
