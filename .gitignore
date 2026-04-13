@@ -57,6 +57,12 @@ nul
 dataset_*.json
 EXECUTE_*.sql
 
+# ─── Playwright / test artifacts (MCP traces, screenshots) ─
+.playwright-mcp/
+screenshots/
+test-results/
+playwright-report/
+
 # ─── Railway ─────────────────────────────────────────────
 .railway/
 
