@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   type ColumnDef,
   flexRender,
@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -24,12 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { CollaboratorFormDialog } from '@/components/collaborators/CollaboratorFormDialog'
 import { MergeDialog } from '@/components/collaborators/MergeDialog'
 import {
@@ -44,10 +37,72 @@ import { toTitleCase, formatNumber } from '@/lib/format'
 
 const MAX_VISIBLE_ALIASES = 3
 
+/** Lightweight row actions — replaces heavy base-ui MenuPrimitive (~50 hooks per instance) */
+function RowActions({ collaborator: c, onEdit, onDeactivate, onReactivate }: {
+  collaborator: Collaborator
+  onEdit: (c: Collaborator) => void
+  onDeactivate: (id: number) => void
+  onReactivate: (id: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center justify-center rounded-md h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      >
+        <MoreHorizontal className="h-4 w-4" />
+        <span className="sr-only">Ações</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 z-50 min-w-32 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 animate-in fade-in-0 zoom-in-95">
+          <button
+            type="button"
+            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent hover:text-accent-foreground"
+            onClick={() => { onEdit(c); setOpen(false) }}
+          >
+            <Pencil className="mr-2 h-4 w-4" /> Editar
+          </button>
+          {c.is_active ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent hover:text-accent-foreground"
+              onClick={() => { onDeactivate(c.id); setOpen(false) }}
+            >
+              <Power className="mr-2 h-4 w-4" /> Desativar
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent hover:text-accent-foreground"
+              onClick={() => { onReactivate(c.id); setOpen(false) }}
+            >
+              <Power className="mr-2 h-4 w-4" /> Reativar
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CollaboratorsPage() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [includeInactive, setIncludeInactive] = useState(false)
+  const [, startTransition] = useTransition()
   const [sorting, setSorting] = useState<SortingState>([])
   const [formOpen, setFormOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Collaborator | null>(null)
@@ -197,35 +252,7 @@ export default function CollaboratorsPage() {
         header: '',
         cell: ({ row }) => {
           const c = row.original
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="inline-flex items-center justify-center rounded-md h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">Ações</span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setEditTarget(c)
-                    setFormOpen(true)
-                  }}
-                >
-                  <Pencil className="mr-2 h-4 w-4" /> Editar
-                </DropdownMenuItem>
-                {c.is_active ? (
-                  <DropdownMenuItem onClick={() => handleDeactivate(c.id)}>
-                    <Power className="mr-2 h-4 w-4" /> Desativar
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => handleReactivate(c.id)}>
-                    <Power className="mr-2 h-4 w-4" /> Reativar
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )
+          return <RowActions collaborator={c} onEdit={(col) => { setEditTarget(col); setFormOpen(true) }} onDeactivate={handleDeactivate} onReactivate={handleReactivate} />
         },
       },
     ],
@@ -285,13 +312,10 @@ export default function CollaboratorsPage() {
         />
         <div className="flex items-center gap-2">
           <Switch
-            id="include-inactive"
             checked={includeInactive}
-            onCheckedChange={setIncludeInactive}
+            onCheckedChange={(val) => startTransition(() => setIncludeInactive(val))}
           />
-          <Label htmlFor="include-inactive" className="text-sm">
-            Incluir inativos
-          </Label>
+          <span className="text-sm font-medium select-none cursor-pointer" onClick={() => startTransition(() => setIncludeInactive(v => !v))}>Incluir inativos</span>
         </div>
       </div>
 
@@ -362,19 +386,23 @@ export default function CollaboratorsPage() {
         </div>
       </div>
 
-      <CollaboratorFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        collaborator={editTarget}
-        onSuccess={invalidate}
-      />
+      {formOpen && (
+        <CollaboratorFormDialog
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          collaborator={editTarget}
+          onSuccess={invalidate}
+        />
+      )}
 
-      <MergeDialog
-        open={mergeOpen}
-        onOpenChange={setMergeOpen}
-        collaborators={data}
-        onSuccess={invalidate}
-      />
+      {mergeOpen && (
+        <MergeDialog
+          open={mergeOpen}
+          onOpenChange={setMergeOpen}
+          collaborators={data}
+          onSuccess={invalidate}
+        />
+      )}
     </div>
   )
 }

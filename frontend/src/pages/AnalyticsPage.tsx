@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -27,7 +27,6 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -85,6 +84,7 @@ const PERIOD_OPTIONS = [
 export default function AnalyticsPage() {
   const [months, setMonths] = useState(12)
   const [includeInactive, setIncludeInactive] = useState(false)
+  const [, startTransition] = useTransition()
 
   const trends = useTrends({ months })
   const collaborators = useCollaboratorMentions({
@@ -286,13 +286,10 @@ export default function AnalyticsPage() {
           </CardTitle>
           <div className="flex items-center gap-2">
             <Switch
-              id="include-inactive"
               checked={includeInactive}
-              onCheckedChange={setIncludeInactive}
+              onCheckedChange={(val) => startTransition(() => setIncludeInactive(val))}
             />
-            <Label htmlFor="include-inactive" className="text-sm">
-              Incluir inativos
-            </Label>
+            <span className="text-sm font-medium select-none cursor-pointer" onClick={() => startTransition(() => setIncludeInactive(v => !v))}>Incluir inativos</span>
           </div>
         </CardHeader>
         <CardContent>
