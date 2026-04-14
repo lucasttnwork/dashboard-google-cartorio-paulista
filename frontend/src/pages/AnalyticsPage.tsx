@@ -99,6 +99,7 @@ function formatDecimal(n: number | null, digits = 2): string {
 // ---------------------------------------------------------------------------
 
 const PERIOD_OPTIONS = [
+  { value: '2', label: 'Últimos 2 meses' },
   { value: '3', label: 'Últimos 3 meses' },
   { value: '6', label: 'Últimos 6 meses' },
   { value: '12', label: 'Últimos 12 meses' },
@@ -109,7 +110,7 @@ const PERIOD_OPTIONS = [
 
 type PeriodValue = (typeof PERIOD_OPTIONS)[number]['value']
 
-const VALID_PRESET_MONTHS = new Set(['3', '6', '12', '24', '60'])
+const VALID_PRESET_MONTHS = new Set(['2', '3', '6', '12', '24', '60'])
 const MAX_COMPARE = 4
 
 /**
@@ -162,13 +163,18 @@ export default function AnalyticsPage() {
   const rawMonths = searchParams.get('months')
   const rawFrom = searchParams.get('from')
   const rawTo = searchParams.get('to')
+  const rawPreset = searchParams.get('preset')
 
-  const isCustom = rawFrom != null && rawTo != null
+  // `preset=custom` is the explicit URL flag the Select uses to enter custom
+  // mode before the user has picked any date. Without it, clicking "Personalizado"
+  // would be a no-op (from/to absent → isCustom false → combobox snaps back).
+  const isCustom =
+    rawPreset === 'custom' || (rawFrom != null && rawTo != null)
   const periodValue: PeriodValue = isCustom
     ? 'custom'
     : rawMonths && VALID_PRESET_MONTHS.has(rawMonths)
       ? (rawMonths as PeriodValue)
-      : '12'
+      : '2'
 
   const customRange: DateRangeValue = useMemo(() => {
     if (!isCustom) return { from: null, to: null }
@@ -229,12 +235,14 @@ export default function AnalyticsPage() {
             const p = new URLSearchParams(prev)
             if (next === 'custom') {
               p.delete('months')
+              p.set('preset', 'custom')
               // `from`/`to` stay blank until the user picks a range; the hook
               // falls back to the 12-month approximation meanwhile.
             } else {
               p.set('months', next)
               p.delete('from')
               p.delete('to')
+              p.delete('preset')
             }
             return p
           },
@@ -349,7 +357,7 @@ export default function AnalyticsPage() {
     periodValue === 'custom'
       ? 'Personalizado'
       : (PERIOD_OPTIONS.find((o) => o.value === periodValue)?.label ??
-        'Últimos 12 meses')
+        'Últimos 2 meses')
 
   const showCompareChart = selectedCollaborators.length >= 2
 

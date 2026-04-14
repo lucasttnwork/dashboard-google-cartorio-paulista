@@ -140,20 +140,24 @@ Nenhuma mudança no response schema.
 
 ---
 
-## Decisão C6 — Threshold de granularidade diária (60 dias)
+## Decisão C6 — Threshold de granularidade diária (60 dias → 62 dias na Fase 3.9)
 
 **Fixado em:** 2026-04-14 (pós reviewer hostil, veredito DRY).
+**Atualizado em:** 2026-04-14 — Fase 3.9 relaxou o threshold para 62 dias.
 
-O helper `frontend/src/lib/period.ts::pickGranularity` usa **60 dias** como corte entre diário e mensal, não "3 meses". Rationale:
+O helper `frontend/src/lib/period.ts::pickGranularity` usa **62 dias** (a partir da Fase 3.9; antes: 60 dias) como corte entre diário e mensal. Rationale:
 
-1. **Legibilidade do KPI chart principal:** 90 colunas diárias em um chart de KPI polui visualmente e torna o scan tendência-mês-a-mês impraticável. Um chart de 60 dias ainda é denso mas legível.
-2. **Simetria com o backend:** o backend aceita `granularity` explícito via query param; o frontend só decide quando o usuário não especifica. Um threshold temporal estrito (60d) é mais previsível que uma regra per-preset.
-3. **Presets fixos caem todos em monthly:** a UI atual expõe apenas presets ≥ 3 meses (Últimos 3/6/12 meses, Todo o período). Todos ultrapassam 60d e portanto renderizam mensal. O único caminho para granularidade diária é o preset **"Personalizado"** com range arrastado ≤60 dias no DateRangePicker — comportamento validado empiricamente via Playwright em 2026-04-14 (range 05/jan → 10/fev, 36 dias, chart renderizou "Avaliações por Dia").
-4. **Contradição original da SPEC:** o rascunho inicial deste documento dava "Últimos 3 meses → diário" como exemplo do AC-3.8.10 mas também definia "≤60 dias" no §C6. Contradição interna resolvida em favor do threshold técnico (60d).
+1. **Legibilidade do KPI chart principal:** 90 colunas diárias em um chart de KPI polui visualmente e torna o scan tendência-mês-a-mês impraticável. Um chart de 60-62 dias ainda é denso mas legível.
+2. **Simetria com o backend:** o backend aceita `granularity` explícito via query param; o frontend só decide quando o usuário não especifica. Um threshold temporal estrito (62d) é mais previsível que uma regra per-preset.
+3. **Presets fixos:** a Fase 3.9 introduziu o preset "Últimos 2 meses" (default do Dashboard e Analytics) que resolve em **daily** por default. Presets ≥ 3 meses (3/6/12/24, Todo o período) continuam resolvendo em **monthly** porque ultrapassam o threshold 62d.
+4. **Contradição original da SPEC:** o rascunho inicial deste documento dava "Últimos 3 meses → diário" como exemplo do AC-3.8.10 mas também definia "≤60 dias" no §C6. Contradição interna resolvida em favor do threshold técnico.
+5. **Por que 62 em vez de 60 (Fase 3.9):** a Fase 3.9 introduziu o preset "Últimos 2 meses" que precisa cair em daily de forma previsível. Dois meses calendarizáveis consecutivos cobrem no máximo **62 dias** (ex: dezembro 31 + janeiro 31). O threshold antigo (≤60) deixaria esse caso em monthly. Relaxar para ≤62 garante que qualquer par de meses consecutivos caia em daily.
 
-**Usuário pode forçar diário via range custom**: arrastar o DateRangePicker até um range ≤60d habilita daily. Para ranges > 60d, diário não é oferecido pelo frontend por default — override explícito via query param `granularity=day` na URL permanece possível e documentado no API contract 3.8.A.
+**Nota Fase 3.9 — alinhamento de presetToDates(2):** mesmo com threshold = 62, a implementação de `presetToDates(months)` em `DashboardPage.tsx` pode emitir uma janela > 62 dias quando computada como "primeiro dia do mês-2 atrás até hoje" (59-92 dias dependendo do calendário). Por isso, a Fase 3.9 também ajustou `presetToDates(2)` para emitir uma **janela fixa de 60 dias** (rolling), apenas no caso `months <= 2`. Presets ≥ 3 meses mantêm o alinhamento first-of-month porque o cálculo de previous_period depende de meses completos simétricos em ambos os lados da janela.
 
-**Dead branch em `pickGranularity`** (`months <= 2 → 'day'`): mantido como guarda defensiva para callers futuros que usem o helper com `months` legacy. Não é dead code semanticamente — é dead code apenas no grafo de chamadas atual (Dashboard+Analytics sempre passam `dateFrom/dateTo`). Remoção adiada para follow-up.
+**Usuário pode forçar diário via range custom**: arrastar o DateRangePicker até um range ≤62d habilita daily. Para ranges > 62d, diário não é oferecido pelo frontend por default — override explícito via query param `granularity=day` na URL permanece possível e documentado no API contract 3.8.A.
+
+**Branch `months <= 2 → 'day'` em `pickGranularity`**: era "dead branch" na Fase 3.8 (Dashboard/Analytics sempre populavam `dateFrom/dateTo`). A Fase 3.9 ressuscita parcialmente: AnalyticsPage no preset '2' passa `months=2` sem date_from/date_to, e cai nesse branch diretamente. Portanto, não é mais dead code.
 
 ---
 
