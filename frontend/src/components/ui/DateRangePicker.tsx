@@ -44,8 +44,11 @@ function formatTrigger(
  * Range date picker built on base-ui Popover + react-day-picker Calendar.
  *
  * Controlled component — the caller owns `value` and `onChange`. The
- * popover auto-closes as soon as both `from` and `to` are selected so
- * the user never has to hunt for a close button.
+ * popover waits for the user to complete BOTH ends of the range before
+ * auto-closing. react-day-picker v9 fires `onSelect` on every click:
+ * the first click sets `{from: X, to: X}` and the second extends `to`.
+ * We count clicks locally so a single-day range still requires two
+ * intentional clicks instead of vanishing on the first one (F4).
  */
 export function DateRangePicker({
   value,
@@ -55,9 +58,15 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
+  const [pendingClicks, setPendingClicks] = useState(0)
 
   const triggerLabel = formatTrigger(value, placeholder)
   const hasValue = value.from != null && value.to != null
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (next) setPendingClicks(0)
+  }
 
   const handleSelect = (range: DateRange | undefined) => {
     const next: DateRangeValue = {
@@ -65,16 +74,20 @@ export function DateRangePicker({
       to: range?.to ?? null,
     }
     onChange(next)
-    // Auto-close on complete range selection.
-    if (next.from && next.to) {
+    const clicks = pendingClicks + 1
+    setPendingClicks(clicks)
+    // Only close once the user has completed two intentional clicks AND
+    // the range has both endpoints resolved.
+    if (clicks >= 2 && next.from && next.to) {
       setOpen(false)
     }
   }
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={handleOpenChange}>
       <Popover.Trigger
         disabled={disabled}
+        aria-label="Selecionar período"
         className={cn(
           'inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-2.5 text-sm font-medium transition-colors',
           'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

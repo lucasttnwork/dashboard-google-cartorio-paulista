@@ -83,11 +83,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
+      {/* Header — not a semantic heading (A1): the sidebar brand is
+          decorative, the real <h1> lives in the current route header. */}
       <div className="px-4 py-6">
-        <h1 className="text-lg font-bold tracking-tight text-foreground">
+        <p className="text-lg font-bold tracking-tight text-foreground">
           Cartório Paulista
-        </h1>
+        </p>
         <p className="text-xs text-muted-foreground">
           Painel de Avaliações
         </p>
@@ -150,6 +151,14 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* A2: Skip link for keyboard users — visible only on focus. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:border focus:border-border focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Pular para conteúdo principal
+      </a>
+
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 border-r border-border bg-card lg:block">
         <SidebarContent />
@@ -206,7 +215,7 @@ export default function AppLayout() {
           </span>
         </header>
 
-        <main className="flex-1 overflow-auto p-6">
+        <main id="main-content" className="flex-1 overflow-auto p-6">
           <Outlet />
         </main>
       </div>

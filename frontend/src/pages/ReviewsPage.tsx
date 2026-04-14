@@ -308,7 +308,10 @@ function ReviewDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+        closeLabel="Fechar detalhes da avaliação"
+      >
         <DialogHeader>
           <DialogTitle>Detalhes da avaliação</DialogTitle>
         </DialogHeader>
@@ -460,6 +463,29 @@ const VALID_SORT_BY = new Set(['create_time', 'rating'])
 const VALID_SORT_ORDER = new Set(['asc', 'desc'])
 const VALID_SENTIMENTS = new Set(['pos', 'neu', 'neg', 'unknown'])
 
+// F6 (phase 3.8): accept long-form aliases from external links and map
+// them to the canonical short values the backend expects. Only used at
+// the URL-parse boundary — the canonical value is what flows into the
+// API call.
+const SENTIMENT_ALIASES: Record<string, string> = {
+  positive: 'pos',
+  neutral: 'neu',
+  negative: 'neg',
+  unknown: 'unknown',
+}
+
+export function normalizeSentimentParam(
+  raw: string | null,
+): string | undefined {
+  if (!raw) return undefined
+  const canonical = SENTIMENT_ALIASES[raw] ?? raw
+  return VALID_SENTIMENTS.has(canonical) ? canonical : undefined
+}
+
+// F3 (phase 3.8): cap applied at the URL-parse boundary so excess IDs
+// never reach the API or the chip list — a single source of truth.
+export const MAX_COLLABORATOR_FILTERS = 3
+
 const VIEW_MODE_KEY = 'reviews-view-mode'
 type ViewMode = 'compact' | 'expanded'
 
@@ -497,10 +523,7 @@ export default function ReviewsPage() {
   ) as 'asc' | 'desc'
   const sortKey = `${sortBy}:${sortOrder}`
 
-  const sentimentRaw = searchParams.get('sentiment') ?? ''
-  const sentiment = VALID_SENTIMENTS.has(sentimentRaw)
-    ? sentimentRaw
-    : undefined
+  const sentiment = normalizeSentimentParam(searchParams.get('sentiment'))
 
   const collaboratorIds = useMemo<number[]>(() => {
     const raw = searchParams.getAll('collaborator_id')
@@ -516,7 +539,9 @@ export default function ReviewsPage() {
         out.push(id)
       }
     }
-    return out
+    // F3: cap here so the limit applies equally to URL load, chip render,
+    // and the outgoing API call — the one place the list is materialized.
+    return out.slice(0, MAX_COLLABORATOR_FILTERS)
     // searchParams identity changes per setSearchParams call — that's our signal.
   }, [searchParams])
 
