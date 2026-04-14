@@ -1074,3 +1074,54 @@ class TestCollaboratorMentionsDateRange:
         kwargs = mock_fn.call_args.kwargs
         assert kwargs["date_from"] == "2026-03-01"
         assert kwargs["date_to"] is None
+
+
+class TestDateRangeValidation:
+    """Phase 3.9 SI-3 — malformed ISO dates return 422 instead of 500.
+
+    Prior to the handler-level validator in ``metrics.py``, a bad
+    ``date_from``/``date_to`` bubbled up as a ``ValueError`` from
+    ``metrics_service._parse_date`` and became an opaque 500. The
+    validator now rejects these requests at the boundary with a 422 and a
+    message that names the offending parameter.
+    """
+
+    async def test_trends_rejects_garbage_date_from(
+        self, client: AsyncClient
+    ) -> None:
+        """``date_from=garbage`` on /trends returns 422, never hits service."""
+        mock_fn = AsyncMock()
+        with patch("app.api.v1.metrics.svc.get_trends", mock_fn):
+            resp = await client.get(
+                "/api/v1/metrics/trends?date_from=garbage&granularity=day"
+            )
+        assert resp.status_code == 422
+        assert "Invalid ISO date" in resp.text
+        assert "date_from" in resp.text
+        mock_fn.assert_not_called()
+
+    async def test_collaborator_mentions_rejects_out_of_range_date_to(
+        self, client: AsyncClient
+    ) -> None:
+        """``date_to=2026-13-40`` on /collaborator-mentions returns 422."""
+        mock_fn = AsyncMock()
+        with patch(
+            "app.api.v1.metrics.svc.get_collaborator_mentions", mock_fn
+        ):
+            resp = await client.get(
+                "/api/v1/metrics/collaborator-mentions?date_to=2026-13-40"
+            )
+        assert resp.status_code == 422
+        assert "Invalid ISO date" in resp.text
+        assert "date_to" in resp.text
+        mock_fn.assert_not_called()
+
+    async def test_overview_rejects_malformed_date_from(
+        self, client: AsyncClient
+    ) -> None:
+        """``date_from`` on /overview is validated at the same boundary."""
+        resp = await client.get(
+            "/api/v1/metrics/overview?date_from=not-a-date"
+        )
+        assert resp.status_code == 422
+        assert "Invalid ISO date" in resp.text

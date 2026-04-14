@@ -6,10 +6,11 @@ and per-collaborator mention breakdowns (Phase 3).
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated, Literal
 
 import structlog
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps.auth import AuthenticatedUser, require_authenticated
@@ -30,6 +31,27 @@ router = APIRouter(tags=["metrics"])
 Authenticated = Annotated[AuthenticatedUser, Depends(require_authenticated)]
 
 
+def _validate_iso_date(value: str | None, param_name: str) -> str | None:
+    """Validate an ISO (YYYY-MM-DD) query param at the handler boundary.
+
+    Phase 3.9 SI-3: previously a malformed ``date_from`` / ``date_to``
+    propagated a ``ValueError`` from ``metrics_service._parse_date`` and
+    bubbled up as a 500. We now reject the request with a 422 before ever
+    reaching the service — the same outcome FastAPI/Pydantic gives for
+    other type-validated params.
+    """
+    if value is None:
+        return None
+    try:
+        date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid ISO date in {param_name}",
+        ) from exc
+    return value
+
+
 @router.get("/overview", response_model=MetricsOverviewOut)
 async def get_overview(
     user: Authenticated,
@@ -41,6 +63,8 @@ async def get_overview(
         description="Also compute the previous period of equal duration",
     ),
 ) -> MetricsOverviewOut:
+    date_from = _validate_iso_date(date_from, "date_from")
+    date_to = _validate_iso_date(date_to, "date_to")
     return await svc.get_overview(
         session,
         date_from=date_from,
@@ -72,6 +96,8 @@ async def get_trends(
     date_to: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
     granularity: Literal["month", "day"] = Query(default="month"),
 ) -> TrendsOut:
+    date_from = _validate_iso_date(date_from, "date_from")
+    date_to = _validate_iso_date(date_to, "date_to")
     return await svc.get_trends(
         session,
         months=months,
@@ -91,6 +117,8 @@ async def get_collaborator_mentions(
     date_from: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
     date_to: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
 ) -> CollaboratorMentionsOut:
+    date_from = _validate_iso_date(date_from, "date_from")
+    date_to = _validate_iso_date(date_to, "date_to")
     return await svc.get_collaborator_mentions(
         session,
         months=months,

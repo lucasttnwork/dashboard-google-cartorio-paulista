@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { pickGranularity } from './period'
 
 describe('pickGranularity', () => {
-  it('returns "day" for custom ranges of 60 days or less', () => {
+  it('returns "day" for custom ranges of 62 days or less', () => {
     expect(
       pickGranularity({ dateFrom: '2026-01-01', dateTo: '2026-01-31' }),
     ).toBe('day')
@@ -11,7 +11,18 @@ describe('pickGranularity', () => {
     ).toBe('day')
   })
 
-  it('returns "month" for custom ranges above 60 days', () => {
+  it('returns "day" at the 62-day boundary (max 2-month span)', () => {
+    // Dec 1 → Jan 31 covers 31+31 = 62 days — the "Últimos 2 meses"
+    // preset worst case. Must resolve to daily granularity.
+    expect(
+      pickGranularity({ dateFrom: '2025-12-01', dateTo: '2026-01-31' }),
+    ).toBe('day')
+  })
+
+  it('returns "month" for custom ranges above 62 days', () => {
+    expect(
+      pickGranularity({ dateFrom: '2026-01-01', dateTo: '2026-03-05' }),
+    ).toBe('month')
     expect(
       pickGranularity({ dateFrom: '2026-01-01', dateTo: '2026-04-01' }),
     ).toBe('month')

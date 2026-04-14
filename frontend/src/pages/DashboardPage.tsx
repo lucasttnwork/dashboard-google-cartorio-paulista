@@ -436,6 +436,16 @@ function CollaboratorsTable({
     avg_rating_mentioned: number | null
   }[]
 }) {
+  // FEAT-3.9-2: in-place expand of the mini-table. Local UI state only — we
+  // intentionally don't persist to the URL because expand/collapse is a
+  // fleeting navigation choice, not a canonical view parameter.
+  const [isExpanded, setIsExpanded] = useState(false)
+  const COLLAPSED_SIZE = 5
+  const visibleCollaborators = isExpanded
+    ? collaborators
+    : collaborators.slice(0, COLLAPSED_SIZE)
+  const canExpand = collaborators.length > COLLAPSED_SIZE
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -462,37 +472,52 @@ function CollaboratorsTable({
             Nenhum colaborador encontrado.
           </p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead className="text-right">Menções</TableHead>
-                <TableHead className="text-right">Nota Média</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {collaborators.map((c) => (
-                <TableRow key={c.collaborator_id}>
-                  <TableCell className="font-medium">
-                    <Link
-                      to={`/collaborators/${c.collaborator_id}`}
-                      className="text-foreground hover:text-primary hover:underline"
-                    >
-                      {toTitleCase(c.full_name)}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatNumber(c.total_mentions)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {c.avg_rating_mentioned != null
-                      ? formatDecimal(c.avg_rating_mentioned)
-                      : '\u2014'}
-                  </TableCell>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead className="text-right">Menções</TableHead>
+                  <TableHead className="text-right">Nota Média</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {visibleCollaborators.map((c) => (
+                  <TableRow key={c.collaborator_id}>
+                    <TableCell className="font-medium">
+                      <Link
+                        to={`/collaborators/${c.collaborator_id}`}
+                        className="text-foreground hover:text-primary hover:underline"
+                      >
+                        {toTitleCase(c.full_name)}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatNumber(c.total_mentions)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {c.avg_rating_mentioned != null
+                        ? formatDecimal(c.avg_rating_mentioned)
+                        : '\u2014'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {canExpand && (
+              <div className="mt-3 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded((v) => !v)}
+                  className="text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-2 py-1"
+                >
+                  {isExpanded
+                    ? 'Ver menos'
+                    : `Ver todos (${collaborators.length})`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -508,6 +533,7 @@ function CollaboratorsTable({
  * label is derived from the range itself, not from this table.
  */
 const PERIOD_OPTIONS = [
+  { value: '2', label: 'Últimos 2 meses' },
   { value: '3', label: 'Últimos 3 meses' },
   { value: '6', label: 'Últimos 6 meses' },
   { value: '12', label: 'Últimos 12 meses' },
@@ -522,7 +548,16 @@ function presetToDates(
 ): { date_from?: string; date_to?: string } {
   if (months >= 60) return {}
   const now = new Date()
-  const from = new Date(now.getFullYear(), now.getMonth() - months, 1)
+  // For the "Últimos 2 meses" preset we emit a fixed 60-day rolling window
+  // so pickGranularity (threshold = 62 days) always resolves to daily. The
+  // previous first-of-month formula could produce 59–92 days depending on
+  // the current calendar day, breaking AC-3.9.1a in half of the year.
+  // 3+ month presets keep first-of-month alignment because previous-period
+  // delta calculations depend on matching calendar months on both sides.
+  const from =
+    months <= 2
+      ? new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
+      : new Date(now.getFullYear(), now.getMonth() - months, 1)
   // Emit both endpoints so the backend can compute `previous_period`
   // deltas for the preset window (requires both dt_from and dt_to).
   return {
@@ -542,8 +577,9 @@ function rangeToDates(
 }
 
 export default function DashboardPage() {
-  // Period state: hybrid preset + custom range. Default is "Últimos 12 meses".
-  const [periodValue, setPeriodValue] = useState<PeriodValue>('12')
+  // Period state: hybrid preset + custom range. Default is "Últimos 2 meses"
+  // so the landing page loads with daily-granularity charts.
+  const [periodValue, setPeriodValue] = useState<PeriodValue>('2')
   const [customRange, setCustomRange] = useState<DateRangeValue>({
     from: null,
     to: null,
@@ -593,14 +629,15 @@ export default function DashboardPage() {
   const trendsGranularity: TrendsGranularity =
     trends.data?.granularity ?? granularity
 
-  const topCollaborators = (mentions.data?.collaborators ?? [])
+  // FEAT-3.9-2: pass the full sorted list to CollaboratorsTable so it can
+  // expand/collapse in-place. The slice used to be done here (top 5 only).
+  const sortedCollaborators = (mentions.data?.collaborators ?? [])
     .slice()
     .sort((a, b) => b.total_mentions - a.total_mentions)
-    .slice(0, 5)
 
   const periodLabel =
     PERIOD_OPTIONS.find((o) => o.value === periodValue)?.label ??
-    'Últimos 12 meses'
+    'Últimos 2 meses'
 
   return (
     <div className="space-y-6">
@@ -720,7 +757,7 @@ export default function DashboardPage() {
       {/* Top collaborators */}
       <CollaboratorsTable
         isLoading={mentions.isLoading}
-        collaborators={topCollaborators}
+        collaborators={sortedCollaborators}
       />
     </div>
   )
