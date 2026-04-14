@@ -2,7 +2,25 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class PreviousPeriodOut(BaseModel):
+    """Aggregate KPIs for the comparison period (same duration, shifted back).
+
+    Returned alongside ``MetricsOverviewOut`` when ``compare_previous=True``
+    is requested. Fields mirror the subset of ``MetricsOverviewOut`` that
+    the frontend needs to compute deltas.
+    """
+
+    total_reviews: int
+    avg_rating: float
+    five_star_pct: float
+    one_star_pct: float
+    reply_rate_pct: float
+    total_mentions: int
+    period_start: str
+    period_end: str
 
 
 class MetricsOverviewOut(BaseModel):
@@ -14,12 +32,17 @@ class MetricsOverviewOut(BaseModel):
     one_star_pct: float
     total_with_comment: int
     total_with_reply: int
+    reply_rate_pct: float = 0.0
     total_enotariado: int
     avg_rating_enotariado: float | None = None
     total_collaborators_active: int
     total_mentions: int
+    rating_distribution: dict[str, int] = Field(
+        default_factory=lambda: {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+    )
     period_start: str
     period_end: str
+    previous_period: PreviousPeriodOut | None = None
 
 
 class MonthData(BaseModel):
@@ -30,6 +53,16 @@ class MonthData(BaseModel):
     avg_rating: float
     reviews_enotariado: int
     avg_rating_enotariado: float | None = None
+    reply_rate_pct: float = 0.0
+
+
+class DataStatusOut(BaseModel):
+    """Data freshness indicator for the dashboard chrome."""
+
+    last_review_date: str | None
+    last_collection_run: str | None
+    total_reviews: int
+    days_since_last_review: int | None
 
 
 class TrendsOut(BaseModel):

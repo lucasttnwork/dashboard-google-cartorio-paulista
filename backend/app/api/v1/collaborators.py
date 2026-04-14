@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import select
 
-from app.deps.auth import AuthenticatedUser, require_role
+from app.deps.auth import AuthenticatedUser, require_authenticated, require_role
 from app.deps.db import get_session
 from app.db.models.user_profile import UserProfile
 from app.schemas.collaborator import (
@@ -24,11 +24,13 @@ from app.schemas.collaborator import (
     CollaboratorCreate,
     CollaboratorListResponse,
     CollaboratorOut,
+    CollaboratorProfileOut,
     CollaboratorUpdate,
     MergeRequest,
     MergeResponse,
 )
 from app.services import collaborator_service as svc
+from app.services import metrics_service as metrics_svc
 
 logger = structlog.get_logger(__name__)
 
@@ -37,6 +39,8 @@ router = APIRouter(tags=["collaborators"])
 AdminOrManager = Annotated[
     AuthenticatedUser, Depends(require_role("admin", "manager"))
 ]
+
+Authenticated = Annotated[AuthenticatedUser, Depends(require_authenticated)]
 
 
 @router.get("/", response_model=CollaboratorListResponse)
@@ -103,6 +107,22 @@ async def merge_collaborators(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/{collaborator_id}/profile",
+    response_model=CollaboratorProfileOut,
+)
+async def get_collaborator_profile(
+    collaborator_id: int,
+    user: Authenticated,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> CollaboratorProfileOut:
+    """Full profile for a collaborator (all authenticated roles)."""
+    result = await metrics_svc.get_collaborator_profile(session, collaborator_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="not_found")
+    return result
 
 
 @router.get("/{collaborator_id}", response_model=CollaboratorOut)

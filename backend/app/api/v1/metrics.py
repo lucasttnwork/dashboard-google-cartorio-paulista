@@ -9,13 +9,14 @@ from __future__ import annotations
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps.auth import AuthenticatedUser, require_authenticated
 from app.deps.db import get_session
 from app.schemas.metrics import (
     CollaboratorMentionsOut,
+    DataStatusOut,
     MetricsOverviewOut,
     MyPerformanceOut,
     TrendsOut,
@@ -35,8 +36,30 @@ async def get_overview(
     session: Annotated[AsyncSession, Depends(get_session)],
     date_from: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
     date_to: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
+    compare_previous: bool = Query(
+        default=False,
+        description="Also compute the previous period of equal duration",
+    ),
 ) -> MetricsOverviewOut:
-    return await svc.get_overview(session, date_from=date_from, date_to=date_to)
+    return await svc.get_overview(
+        session,
+        date_from=date_from,
+        date_to=date_to,
+        compare_previous=compare_previous,
+    )
+
+
+@router.get("/data-status", response_model=DataStatusOut)
+async def get_data_status(
+    user: Authenticated,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    response: Response,
+) -> DataStatusOut:
+    """Freshness indicator: last review, last collection run, total count."""
+    response.headers["Cache-Control"] = (
+        "public, max-age=300, stale-while-revalidate=60"
+    )
+    return await svc.get_data_status(session)
 
 
 @router.get("/trends", response_model=TrendsOut)

@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 
 import structlog
-from sqlalchemy import Select, func, or_, select, tuple_
+from sqlalchemy import Select, String, cast, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -161,6 +161,50 @@ def _apply_filters(
 # Public API
 # ---------------------------------------------------------------------------
 
+def _apply_advanced_filters(
+    stmt: Select,
+    *,
+    collaborator_id: list[int] | None,
+    sentiment: str | None,
+    is_count: bool = False,
+) -> Select:
+    """Apply Phase 3.7 filters (collaborator mention and sentiment).
+
+    When ``collaborator_id`` is a non-empty list, restricts to reviews with
+    at least one matching mention via an INNER JOIN on ``review_collaborators``.
+    When ``sentiment`` is provided, LEFT JOINs ``review_labels``; the special
+    ``"unknown"`` value matches both ``NULL`` labels and rows explicitly
+    labelled ``unknown``.
+    """
+    if collaborator_id:
+        stmt = stmt.join(
+            ReviewCollaborator,
+            ReviewCollaborator.review_id == Review.review_id,
+        ).where(ReviewCollaborator.collaborator_id.in_(collaborator_id))
+        if not is_count:
+            stmt = stmt.distinct()
+
+    if sentiment is not None:
+        stmt = stmt.outerjoin(
+            ReviewLabel, ReviewLabel.review_id == Review.review_id
+        )
+        # ``review_labels.sentiment`` is a Postgres enum (``review_sentiment``)
+        # so we cast to text before comparing to the request string to avoid
+        # ``operator does not exist: review_sentiment = varchar``.
+        sentiment_col = cast(ReviewLabel.sentiment, String)
+        if sentiment == "unknown":
+            stmt = stmt.where(
+                or_(
+                    ReviewLabel.sentiment.is_(None),
+                    sentiment_col == "unknown",
+                )
+            )
+        else:
+            stmt = stmt.where(sentiment_col == sentiment)
+
+    return stmt
+
+
 async def list_reviews(
     session: AsyncSession,
     *,
@@ -171,6 +215,8 @@ async def list_reviews(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     has_reply: bool | None = None,
+    collaborator_id: list[int] | None = None,
+    sentiment: str | None = None,
     sort_by: str = "create_time",
     sort_order: str = "desc",
 ) -> ReviewListResponse:
@@ -182,10 +228,23 @@ async def list_reviews(
     # --- Total count (first page only) ---
     total = 0
     if cursor is None:
-        count_stmt: Select = select(func.count()).select_from(Review)
+        # For count queries the collaborator join could produce duplicates
+        # (one row per mention). We use COUNT(DISTINCT review_id) there.
+        count_col = (
+            func.count(func.distinct(Review.review_id))
+            if collaborator_id
+            else func.count()
+        )
+        count_stmt: Select = select(count_col).select_from(Review)
         count_stmt = _apply_filters(
             count_stmt, rating=rating, search=search,
             date_from=date_from, date_to=date_to, has_reply=has_reply,
+        )
+        count_stmt = _apply_advanced_filters(
+            count_stmt,
+            collaborator_id=collaborator_id,
+            sentiment=sentiment,
+            is_count=True,
         )
         total = (await session.execute(count_stmt)).scalar() or 0
 
@@ -197,6 +256,11 @@ async def list_reviews(
     stmt = _apply_filters(
         stmt, rating=rating, search=search,
         date_from=date_from, date_to=date_to, has_reply=has_reply,
+    )
+    stmt = _apply_advanced_filters(
+        stmt,
+        collaborator_id=collaborator_id,
+        sentiment=sentiment,
     )
 
     # --- Sorting ---

@@ -6,7 +6,7 @@ statistics.  All queries use service_role (RLS bypassed) and are read-only.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import structlog
 from sqlalchemy import case, func, select, text
@@ -14,13 +14,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.collaborator import Collaborator, ReviewCollaborator
 from app.db.models.review import Review, ReviewLabel
+from app.schemas.collaborator import (
+    CollaboratorProfileOut,
+    CollaboratorReviewOut,
+)
 from app.schemas.metrics import (
     CollaboratorMentionOut,
     CollaboratorMentionsOut,
     CollaboratorMonthData,
+    DataStatusOut,
     MetricsOverviewOut,
     MonthData,
     MyPerformanceOut,
+    PreviousPeriodOut,
     TrendsOut,
 )
 
@@ -46,22 +52,26 @@ def _round2(value: float | None) -> float | None:
 # ---------------------------------------------------------------------------
 
 
-async def get_overview(
+async def _aggregate_overview_window(
     session: AsyncSession,
     *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-) -> MetricsOverviewOut:
-    """Compute aggregate KPIs from the reviews table (real-time)."""
-    dt_from = _parse_date(date_from)
-    dt_to = _parse_date(date_to)
+    dt_from: datetime | None,
+    dt_to: datetime | None,
+) -> dict:
+    """Run the overview aggregation for a single window.
 
-    # --- Main aggregation over reviews + review_labels -----------------
+    Returns a dict with the raw aggregate values for the given window.
+    Used by ``get_overview`` for both the primary window and the optional
+    previous-period comparison window.
+    """
     stmt = (
         select(
             func.count().label("total"),
             func.avg(Review.rating).label("avg_rating"),
             func.count().filter(Review.rating == 5).label("five_star"),
+            func.count().filter(Review.rating == 4).label("four_star"),
+            func.count().filter(Review.rating == 3).label("three_star"),
+            func.count().filter(Review.rating == 2).label("two_star"),
             func.count().filter(Review.rating == 1).label("one_star"),
             func.count().filter(
                 (Review.comment.isnot(None)) & (Review.comment != "")
@@ -88,19 +98,10 @@ async def get_overview(
         stmt = stmt.where(Review.create_time <= dt_to)
 
     row = (await session.execute(stmt)).one()
+    total = row.total or 0
 
-    total: int = row.total or 0
-
-    # --- Collaborators active count ------------------------------------
-    active_count = (
-        await session.execute(
-            select(func.count()).select_from(Collaborator).where(Collaborator.is_active.is_(True))
-        )
-    ).scalar() or 0
-
-    # --- Total mentions count ------------------------------------------
+    # Mentions count for the same window
     mentions_stmt = select(func.count()).select_from(ReviewCollaborator)
-    # Apply same date filter to mentions via join to reviews
     if dt_from is not None or dt_to is not None:
         mentions_stmt = mentions_stmt.join(
             Review, ReviewCollaborator.review_id == Review.review_id
@@ -109,26 +110,112 @@ async def get_overview(
             mentions_stmt = mentions_stmt.where(Review.create_time >= dt_from)
         if dt_to is not None:
             mentions_stmt = mentions_stmt.where(Review.create_time <= dt_to)
-
     total_mentions = (await session.execute(mentions_stmt)).scalar() or 0
 
-    # --- Build response ------------------------------------------------
-    period_start = row.period_start or dt_from
-    period_end = row.period_end or dt_to
+    five_star_pct = round((row.five_star / total) * 100, 2) if total > 0 else 0.0
+    one_star_pct = round((row.one_star / total) * 100, 2) if total > 0 else 0.0
+    reply_rate_pct = (
+        round(((row.with_reply or 0) / total) * 100, 2) if total > 0 else 0.0
+    )
+
+    rating_distribution: dict[str, int] = {
+        "1": int(row.one_star or 0),
+        "2": int(row.two_star or 0),
+        "3": int(row.three_star or 0),
+        "4": int(row.four_star or 0),
+        "5": int(row.five_star or 0),
+    }
+
+    return {
+        "total": int(total),
+        "avg_rating": _round2(row.avg_rating) or 0.0,
+        "five_star_pct": five_star_pct,
+        "one_star_pct": one_star_pct,
+        "with_comment": int(row.with_comment or 0),
+        "with_reply": int(row.with_reply or 0),
+        "reply_rate_pct": reply_rate_pct,
+        "enotariado": int(row.enotariado or 0),
+        "avg_rating_enot": _round2(row.avg_rating_enot),
+        "total_mentions": int(total_mentions),
+        "rating_distribution": rating_distribution,
+        "period_start_raw": row.period_start,
+        "period_end_raw": row.period_end,
+    }
+
+
+def _format_period_value(
+    db_value: datetime | None, fallback: datetime | None
+) -> str:
+    value = db_value or fallback
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value or ""
+
+
+async def get_overview(
+    session: AsyncSession,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    compare_previous: bool = False,
+) -> MetricsOverviewOut:
+    """Compute aggregate KPIs from the reviews table (real-time).
+
+    When *compare_previous* is True and both ``date_from``/``date_to`` are
+    provided, also computes the same aggregation for the window of equal
+    duration immediately preceding the primary window, returned as
+    ``previous_period``. Missing either boundary yields ``previous_period=None``.
+    """
+    dt_from = _parse_date(date_from)
+    dt_to = _parse_date(date_to)
+
+    primary = await _aggregate_overview_window(
+        session, dt_from=dt_from, dt_to=dt_to
+    )
+
+    # --- Collaborators active count (not window-dependent) ------------
+    active_count = (
+        await session.execute(
+            select(func.count()).select_from(Collaborator).where(Collaborator.is_active.is_(True))
+        )
+    ).scalar() or 0
+
+    # --- Optional previous-period aggregation -------------------------
+    previous_period: PreviousPeriodOut | None = None
+    if compare_previous and dt_from is not None and dt_to is not None:
+        duration = dt_to - dt_from
+        dt_prev_to = dt_from
+        dt_prev_from = dt_from - duration
+        prev = await _aggregate_overview_window(
+            session, dt_from=dt_prev_from, dt_to=dt_prev_to
+        )
+        previous_period = PreviousPeriodOut(
+            total_reviews=prev["total"],
+            avg_rating=prev["avg_rating"],
+            five_star_pct=prev["five_star_pct"],
+            one_star_pct=prev["one_star_pct"],
+            reply_rate_pct=prev["reply_rate_pct"],
+            total_mentions=prev["total_mentions"],
+            period_start=dt_prev_from.isoformat(),
+            period_end=dt_prev_to.isoformat(),
+        )
 
     return MetricsOverviewOut(
-        total_reviews=total,
-        avg_rating=_round2(row.avg_rating) or 0.0,
-        five_star_pct=_round2((row.five_star / total) * 100) if total > 0 else 0.0,
-        one_star_pct=_round2((row.one_star / total) * 100) if total > 0 else 0.0,
-        total_with_comment=row.with_comment or 0,
-        total_with_reply=row.with_reply or 0,
-        total_enotariado=row.enotariado or 0,
-        avg_rating_enotariado=_round2(row.avg_rating_enot),
+        total_reviews=primary["total"],
+        avg_rating=primary["avg_rating"],
+        five_star_pct=primary["five_star_pct"],
+        one_star_pct=primary["one_star_pct"],
+        total_with_comment=primary["with_comment"],
+        total_with_reply=primary["with_reply"],
+        reply_rate_pct=primary["reply_rate_pct"],
+        total_enotariado=primary["enotariado"],
+        avg_rating_enotariado=primary["avg_rating_enot"],
         total_collaborators_active=active_count,
-        total_mentions=total_mentions,
-        period_start=period_start.isoformat() if isinstance(period_start, datetime) else (period_start or ""),
-        period_end=period_end.isoformat() if isinstance(period_end, datetime) else (period_end or ""),
+        total_mentions=primary["total_mentions"],
+        rating_distribution=primary["rating_distribution"],
+        period_start=_format_period_value(primary["period_start_raw"], dt_from),
+        period_end=_format_period_value(primary["period_end_raw"], dt_to),
+        previous_period=previous_period,
     )
 
 
@@ -158,7 +245,9 @@ async def get_trends(
         "       ROUND(AVG(r.rating)::numeric, 2) AS avg_rating, "
         "       SUM(CASE WHEN rl.is_enotariado THEN 1 ELSE 0 END) AS reviews_enotariado, "
         "       ROUND(AVG(CASE WHEN rl.is_enotariado THEN r.rating END)::numeric, 2) "
-        "           AS avg_rating_enotariado "
+        "           AS avg_rating_enotariado, "
+        "       ROUND(COUNT(*) FILTER (WHERE r.reply_text IS NOT NULL AND r.reply_text <> '')::numeric "
+        "             * 100 / NULLIF(COUNT(*), 0), 2) AS reply_rate_pct "
         "FROM reviews r "
         "LEFT JOIN review_labels rl USING (review_id) "
         "WHERE r.create_time >= current_date - interval '1 month' * :months "
@@ -180,6 +269,7 @@ async def get_trends(
                 avg_rating=_round2(r[2]) or 0.0,
                 reviews_enotariado=int(r[3] or 0),
                 avg_rating_enotariado=_round2(r[4]),
+                reply_rate_pct=float(r[5]) if r[5] is not None else 0.0,
             )
         )
 
@@ -398,4 +488,277 @@ async def get_my_performance(
         total_collaborators=total_collaborators,
         monthly=monthly,
         recent_reviews=recent_reviews,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5. Collaborator profile page (Phase 3.7)
+# ---------------------------------------------------------------------------
+
+
+async def get_collaborator_profile(
+    session: AsyncSession,
+    collaborator_id: int,
+) -> CollaboratorProfileOut | None:
+    """Aggregated profile for a single collaborator.
+
+    Returns ``None`` when no collaborator exists with the given id so the
+    route can emit a 404. Performs a handful of small, independent queries
+    instead of one monster join — each one is cheap on the indexed tables.
+    """
+    # --- Basic info ----------------------------------------------------
+    basic_row = (
+        await session.execute(
+            select(
+                Collaborator.id,
+                Collaborator.full_name,
+                Collaborator.aliases,
+                Collaborator.department,
+                Collaborator.position,
+                Collaborator.is_active,
+            ).where(Collaborator.id == collaborator_id)
+        )
+    ).one_or_none()
+
+    if basic_row is None:
+        return None
+
+    cid = basic_row[0]
+
+    # --- All-time totals + rating distribution ------------------------
+    totals_stmt = (
+        select(
+            func.count(ReviewCollaborator.review_id).label("total_mentions"),
+            func.avg(Review.rating).label("avg_rating"),
+            func.count().filter(Review.rating == 1).label("r1"),
+            func.count().filter(Review.rating == 2).label("r2"),
+            func.count().filter(Review.rating == 3).label("r3"),
+            func.count().filter(Review.rating == 4).label("r4"),
+            func.count().filter(Review.rating == 5).label("r5"),
+        )
+        .select_from(ReviewCollaborator)
+        .join(Review, Review.review_id == ReviewCollaborator.review_id)
+        .where(ReviewCollaborator.collaborator_id == cid)
+    )
+    totals_row = (await session.execute(totals_stmt)).one()
+    total_mentions = int(totals_row.total_mentions or 0)
+    avg_rating = _round2(totals_row.avg_rating)
+    rating_distribution = {
+        "1": int(totals_row.r1 or 0),
+        "2": int(totals_row.r2 or 0),
+        "3": int(totals_row.r3 or 0),
+        "4": int(totals_row.r4 or 0),
+        "5": int(totals_row.r5 or 0),
+    }
+
+    # --- Ranking among active collaborators ---------------------------
+    ranking_stmt = (
+        select(
+            ReviewCollaborator.collaborator_id,
+            func.count(ReviewCollaborator.review_id).label("cnt"),
+        )
+        .join(Collaborator, Collaborator.id == ReviewCollaborator.collaborator_id)
+        .where(Collaborator.is_active.is_(True))
+        .group_by(ReviewCollaborator.collaborator_id)
+        .order_by(func.count(ReviewCollaborator.review_id).desc())
+    )
+    ranking_rows = (await session.execute(ranking_stmt)).all()
+    total_collaborators_active = (
+        await session.execute(
+            select(func.count())
+            .select_from(Collaborator)
+            .where(Collaborator.is_active.is_(True))
+        )
+    ).scalar() or 0
+
+    ranking = next(
+        (i + 1 for i, r in enumerate(ranking_rows) if r[0] == cid),
+        None,
+    )
+
+    # --- 6m / prev 6m windows (for frontend delta) --------------------
+    # Use the review with the latest create_time the collaborator is
+    # mentioned on as the anchor so the window works even on stale DBs.
+    # Fallback to "now" when there are no mentions at all.
+    anchor_row = (
+        await session.execute(
+            select(func.max(Review.create_time))
+            .select_from(ReviewCollaborator)
+            .join(Review, Review.review_id == ReviewCollaborator.review_id)
+            .where(ReviewCollaborator.collaborator_id == cid)
+        )
+    ).scalar()
+    anchor_raw = anchor_row or datetime.now(tz=timezone.utc)
+    if isinstance(anchor_raw, datetime) and anchor_raw.tzinfo is None:
+        anchor_raw = anchor_raw.replace(tzinfo=timezone.utc)
+    anchor: datetime = anchor_raw
+
+    six_months = timedelta(days=183)
+    window_a_from = anchor - six_months
+    window_b_from = anchor - (six_months * 2)
+
+    def _window_stmt(start: datetime, end: datetime):
+        return (
+            select(
+                func.count(ReviewCollaborator.review_id),
+                func.avg(Review.rating),
+            )
+            .select_from(ReviewCollaborator)
+            .join(Review, Review.review_id == ReviewCollaborator.review_id)
+            .where(
+                ReviewCollaborator.collaborator_id == cid,
+                Review.create_time >= start,
+                Review.create_time < end,
+            )
+        )
+
+    last_row = (
+        await session.execute(_window_stmt(window_a_from, anchor))
+    ).one()
+    prev_row = (
+        await session.execute(_window_stmt(window_b_from, window_a_from))
+    ).one()
+
+    mentions_last_6m = int(last_row[0] or 0)
+    avg_rating_last_6m = _round2(last_row[1])
+    mentions_prev_6m = int(prev_row[0] or 0)
+    avg_rating_prev_6m = _round2(prev_row[1])
+
+    # --- Monthly breakdown (last 12 months) ---------------------------
+    cutoff_sql = text("current_date - interval '12 months'")
+    try:
+        monthly_stmt = (
+            select(
+                func.date_trunc("month", Review.create_time).label("month"),
+                func.count(ReviewCollaborator.review_id).label("mentions"),
+                func.avg(Review.rating).label("avg_rating"),
+            )
+            .join(Review, Review.review_id == ReviewCollaborator.review_id)
+            .where(
+                ReviewCollaborator.collaborator_id == cid,
+                Review.create_time >= cutoff_sql,
+            )
+            .group_by(text("1"))
+            .order_by(text("1"))
+        )
+        monthly_rows = (await session.execute(monthly_stmt)).all()
+    except Exception:  # pragma: no cover — SQLite test fallback
+        monthly_rows = []
+
+    monthly = [
+        CollaboratorMonthData(
+            month=r[0].isoformat() if hasattr(r[0], "isoformat") else str(r[0]),
+            mentions=int(r[1]),
+            avg_rating=_round2(r[2]),
+        )
+        for r in monthly_rows
+    ]
+
+    # --- Recent reviews (last 20) -------------------------------------
+    recent_stmt = (
+        select(
+            Review.review_id,
+            Review.rating,
+            Review.comment,
+            Review.reviewer_name,
+            Review.create_time,
+            ReviewCollaborator.mention_snippet,
+            ReviewCollaborator.match_score,
+        )
+        .select_from(ReviewCollaborator)
+        .join(Review, Review.review_id == ReviewCollaborator.review_id)
+        .where(ReviewCollaborator.collaborator_id == cid)
+        .order_by(Review.create_time.desc())
+        .limit(20)
+    )
+    recent_rows = (await session.execute(recent_stmt)).all()
+    recent_reviews = [
+        CollaboratorReviewOut(
+            review_id=r[0],
+            rating=r[1],
+            comment=(r[2] or "")[:300] if r[2] is not None else None,
+            reviewer_name=r[3] or "Anônimo",
+            create_time=r[4].isoformat() if r[4] else None,
+            mention_snippet=r[5],
+            match_score=r[6],
+        )
+        for r in recent_rows
+    ]
+
+    return CollaboratorProfileOut(
+        id=cid,
+        full_name=basic_row[1],
+        aliases=list(basic_row[2] or []),
+        department=basic_row[3],
+        position=basic_row[4],
+        is_active=bool(basic_row[5]),
+        total_mentions=total_mentions,
+        avg_rating=avg_rating,
+        ranking=ranking,
+        total_collaborators_active=int(total_collaborators_active),
+        mentions_last_6m=mentions_last_6m,
+        mentions_prev_6m=mentions_prev_6m,
+        avg_rating_last_6m=avg_rating_last_6m,
+        avg_rating_prev_6m=avg_rating_prev_6m,
+        rating_distribution=rating_distribution,
+        monthly=monthly,
+        recent_reviews=recent_reviews,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 6. Data freshness status (Phase 3.7)
+# ---------------------------------------------------------------------------
+
+
+async def get_data_status(session: AsyncSession) -> DataStatusOut:
+    """Expose data freshness indicators for the dashboard chrome.
+
+    Reads the max ``create_time`` from ``reviews``, the max ``completed_at``
+    from ``collection_runs`` with status ``completed``, and the total review
+    count. Computes ``days_since_last_review`` server-side so the frontend
+    does not need to parse dates for the gray/amber/red threshold.
+    """
+    last_review_row = (
+        await session.execute(select(func.max(Review.create_time)))
+    ).scalar()
+
+    total_reviews = (
+        await session.execute(select(func.count()).select_from(Review))
+    ).scalar() or 0
+
+    try:
+        last_run_row = (
+            await session.execute(
+                text(
+                    "SELECT MAX(completed_at) FROM collection_runs "
+                    "WHERE status = 'completed'"
+                )
+            )
+        ).scalar()
+    except Exception:  # pragma: no cover — SQLite fallback when table absent
+        last_run_row = None
+
+    days_since_last_review: int | None = None
+    if isinstance(last_review_row, datetime):
+        now = datetime.now(tz=timezone.utc)
+        # ensure tz-aware arithmetic
+        anchor = last_review_row
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
+        delta = now - anchor
+        days_since_last_review = max(0, delta.days)
+
+    def _iso(value: object) -> str | None:
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if value is None:
+            return None
+        return str(value)
+
+    return DataStatusOut(
+        last_review_date=_iso(last_review_row),
+        last_collection_run=_iso(last_run_row),
+        total_reviews=int(total_reviews),
+        days_since_last_review=days_since_last_review,
     )

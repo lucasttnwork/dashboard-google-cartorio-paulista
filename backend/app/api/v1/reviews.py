@@ -49,6 +49,15 @@ async def list_reviews(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
     has_reply: bool | None = Query(default=None),
+    collaborator_id: list[int] | None = Query(
+        default=None,
+        description="Filter by reviews mentioning at least one of these collaborator ids",
+    ),
+    sentiment: str | None = Query(
+        default=None,
+        pattern="^(pos|neu|neg|unknown)$",
+        description="Filter by review label sentiment",
+    ),
     sort_by: str = Query(default="create_time", pattern="^(create_time|rating)$"),
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
 ) -> ReviewListResponse:
@@ -61,6 +70,8 @@ async def list_reviews(
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
         has_reply=has_reply,
+        collaborator_id=collaborator_id or None,
+        sentiment=sentiment,
         sort_by=sort_by,
         sort_order=sort_order,
     )
