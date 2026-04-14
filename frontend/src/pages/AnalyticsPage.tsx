@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, useTransition } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Bar,
   BarChart,
@@ -642,7 +642,12 @@ export default function AnalyticsPage() {
                         {idx + 1}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {toTitleCase(c.full_name)}
+                        <Link
+                          to={`/collaborators/${c.collaborator_id}`}
+                          className="text-foreground hover:text-primary hover:underline"
+                        >
+                          {toTitleCase(c.full_name)}
+                        </Link>
                       </TableCell>
                       <TableCell>{formatNumber(c.total_mentions)}</TableCell>
                       <TableCell>

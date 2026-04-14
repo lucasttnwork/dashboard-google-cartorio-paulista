@@ -389,7 +389,12 @@ function CollaboratorsTable({
   collaborators,
 }: {
   isLoading: boolean
-  collaborators: { full_name: string; total_mentions: number; avg_rating_mentioned: number | null }[]
+  collaborators: {
+    collaborator_id: number
+    full_name: string
+    total_mentions: number
+    avg_rating_mentioned: number | null
+  }[]
 }) {
   return (
     <Card>
@@ -427,8 +432,15 @@ function CollaboratorsTable({
             </TableHeader>
             <TableBody>
               {collaborators.map((c) => (
-                <TableRow key={c.full_name}>
-                  <TableCell className="font-medium">{toTitleCase(c.full_name)}</TableCell>
+                <TableRow key={c.collaborator_id}>
+                  <TableCell className="font-medium">
+                    <Link
+                      to={`/collaborators/${c.collaborator_id}`}
+                      className="text-foreground hover:text-primary hover:underline"
+                    >
+                      {toTitleCase(c.full_name)}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-right">
                     {formatNumber(c.total_mentions)}
                   </TableCell>
