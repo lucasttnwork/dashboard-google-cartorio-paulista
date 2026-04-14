@@ -1118,16 +1118,6 @@ AS $function$
   order by 1 asc;
 $function$;
 
--- Function: public.get_monthly_stats(p_month text)
-CREATE OR REPLACE FUNCTION public.get_monthly_stats(p_month text)
- RETURNS TABLE(total_reviews bigint, avg_rating numeric, five_star_percentage numeric, oldest_review timestamp with time zone, newest_review timestamp with time zone, five_star_count bigint)
- LANGUAGE sql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select * from get_monthly_stats(p_month, 'cartorio-paulista-location');
-$function$;
-
 -- Function: public.get_monthly_stats(p_month text, p_location_id text)
 CREATE OR REPLACE FUNCTION public.get_monthly_stats(p_month text, p_location_id text DEFAULT 'cartorio-paulista-location'::text)
  RETURNS TABLE(total_reviews bigint, avg_rating numeric, five_star_percentage numeric, oldest_review timestamp with time zone, newest_review timestamp with time zone, five_star_count bigint)
@@ -1150,14 +1140,14 @@ AS $function$
     and source = 'apify';
 $function$;
 
--- Function: public.get_monthly_trends()
-CREATE OR REPLACE FUNCTION public.get_monthly_trends()
- RETURNS TABLE(month text, total_reviews bigint, avg_rating numeric, five_star_count bigint, four_star_count bigint, three_star_count bigint, two_star_count bigint, one_star_count bigint)
+-- Function: public.get_monthly_stats(p_month text)
+CREATE OR REPLACE FUNCTION public.get_monthly_stats(p_month text)
+ RETURNS TABLE(total_reviews bigint, avg_rating numeric, five_star_percentage numeric, oldest_review timestamp with time zone, newest_review timestamp with time zone, five_star_count bigint)
  LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select * from get_monthly_trends('cartorio-paulista-location');
+  select * from get_monthly_stats(p_month, 'cartorio-paulista-location');
 $function$;
 
 -- Function: public.get_monthly_trends(p_location_id text)
@@ -1182,6 +1172,16 @@ AS $function$
     and create_time >= date_trunc('month', current_date - interval '11 months')
   group by date_trunc('month', create_time)
   order by month desc;
+$function$;
+
+-- Function: public.get_monthly_trends()
+CREATE OR REPLACE FUNCTION public.get_monthly_trends()
+ RETURNS TABLE(month text, total_reviews bigint, avg_rating numeric, five_star_count bigint, four_star_count bigint, three_star_count bigint, two_star_count bigint, one_star_count bigint)
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select * from get_monthly_trends('cartorio-paulista-location');
 $function$;
 
 -- Function: public.get_monthly_trends_ext(p_location_id text, p_months integer)
@@ -1274,16 +1274,6 @@ AS $function$
   limit limit_param
 $function$;
 
--- Function: public.get_reviews_by_month(p_month text, p_limit integer, p_offset integer)
-CREATE OR REPLACE FUNCTION public.get_reviews_by_month(p_month text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0)
- RETURNS TABLE(review_id text, location_id text, rating integer, comment text, reviewer_name text, create_time timestamp with time zone, update_time timestamp with time zone, collection_source text)
- LANGUAGE sql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select * from get_reviews_by_month(p_month, 'cartorio-paulista-location', p_limit, p_offset);
-$function$;
-
 -- Function: public.get_reviews_by_month(p_month text, p_limit integer, p_offset integer, p_location_id text)
 CREATE OR REPLACE FUNCTION public.get_reviews_by_month(p_month text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_location_id text DEFAULT NULL::text)
  RETURNS TABLE(review_id text, location_id text, rating integer, comment text, reviewer_name text, create_time timestamp with time zone, update_time timestamp with time zone, collection_source text)
@@ -1324,14 +1314,14 @@ AS $function$
   offset p_offset;
 $function$;
 
--- Function: public.get_reviews_stats()
-CREATE OR REPLACE FUNCTION public.get_reviews_stats()
- RETURNS TABLE(total_reviews bigint, avg_rating numeric, oldest_review timestamp with time zone, newest_review timestamp with time zone, five_star_count bigint, five_star_percentage numeric)
+-- Function: public.get_reviews_by_month(p_month text, p_limit integer, p_offset integer)
+CREATE OR REPLACE FUNCTION public.get_reviews_by_month(p_month text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0)
+ RETURNS TABLE(review_id text, location_id text, rating integer, comment text, reviewer_name text, create_time timestamp with time zone, update_time timestamp with time zone, collection_source text)
  LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select * from get_reviews_stats('cartorio-paulista-location');
+  select * from get_reviews_by_month(p_month, 'cartorio-paulista-location', p_limit, p_offset);
 $function$;
 
 -- Function: public.get_reviews_stats(p_location_id text)
@@ -1353,6 +1343,16 @@ AS $function$
   from reviews
   where location_id = p_location_id
     and source = 'apify';
+$function$;
+
+-- Function: public.get_reviews_stats()
+CREATE OR REPLACE FUNCTION public.get_reviews_stats()
+ RETURNS TABLE(total_reviews bigint, avg_rating numeric, oldest_review timestamp with time zone, newest_review timestamp with time zone, five_star_count bigint, five_star_percentage numeric)
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select * from get_reviews_stats('cartorio-paulista-location');
 $function$;
 
 -- Function: public.match_review_collaborators(p_review_id text, p_review_comment text, p_target_collaborator bigint, p_context_window integer)

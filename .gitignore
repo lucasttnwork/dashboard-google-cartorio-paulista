@@ -80,3 +80,4 @@ supabase/.branches/
 
 # ─── Runtime secrets backups (never commit) ──────────────
 .tmp/legacy-secrets/
+docker-compose.local.yml
