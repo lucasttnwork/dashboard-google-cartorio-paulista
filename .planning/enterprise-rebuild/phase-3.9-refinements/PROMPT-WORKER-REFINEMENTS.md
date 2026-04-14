@@ -1,6 +1,6 @@
 # PROMPT — Worker Implementador · Fase 3.9 Dashboard Refinements
 
-> **Contexto de invocação:** você está em uma sessão Claude Code dedicada, rodando em tmux `worker-3_9-refinements` no socket compartilhado `/tmp/claude-tmux-sockets/claude.sock`, em um worktree isolado em `/home/lucas/Documentos/CODE/dashboard-cartorio-phase-3.9-refinements` (branch `worktree-phase-3.9-refinements`). Sua mãe é a sessão Opus 4.6 em pane-id 23 do wezterm socket `/run/user/1000/wezterm/gui-sock-38590`.
+> **Contexto de invocação:** você está em uma sessão Claude Code dedicada, rodando em tmux `worker-3_9-refinements` no socket compartilhado `/tmp/claude-tmux-sockets/claude.sock`, em um worktree isolado em `/home/lucas/Documentos/CODE/dashboard-cartorio-phase-3.9-refinements` (branch `worktree-phase-3.9-refinements`). Sua mãe é a sessão Opus 4.6 em pane-id 2 do wezterm socket `/run/user/1000/wezterm/gui-sock-38590`.
 
 ---
 
@@ -108,7 +108,7 @@ Credenciais e config vivem em `.env` raiz (gitignored, NÃO COMMITAR).
 **Ao terminar (DONE):**
 ```bash
 WEZTERM_UNIX_SOCKET=/run/user/1000/wezterm/gui-sock-38590 \
-  wezterm cli send-text --pane-id 23 --no-paste \
+  wezterm cli send-text --pane-id 2 --no-paste \
   $'[CC-WORKER phase-3.9-refinements] DONE — commit <hash>\r'
 
 cat > /home/lucas/Documentos/CODE/dashboard-google-cartorio-paulista/.orchestrator/inbox/$(date +%s)-refinements-DONE.txt <<EOF
