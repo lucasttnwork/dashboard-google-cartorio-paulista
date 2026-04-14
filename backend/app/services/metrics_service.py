@@ -379,7 +379,10 @@ async def get_my_performance(
     """Return performance metrics for the collaborator linked to *user_id*."""
     from uuid import UUID as _UUID
 
-    uid = _UUID(user_id)
+    # ``user_id`` may arrive as a native asyncpg UUID, a stdlib UUID, or a
+    # plain string; normalise via ``str()`` before reconstructing to avoid
+    # ``AttributeError`` inside the stdlib UUID constructor.
+    uid = _UUID(str(user_id))
 
     # Find linked collaborator
     collab_row = (

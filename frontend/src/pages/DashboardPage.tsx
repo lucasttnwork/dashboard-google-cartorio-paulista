@@ -483,7 +483,12 @@ function presetToDates(
   if (months >= 60) return {}
   const now = new Date()
   const from = new Date(now.getFullYear(), now.getMonth() - months, 1)
-  return { date_from: from.toISOString().slice(0, 10) }
+  // Emit both endpoints so the backend can compute `previous_period`
+  // deltas for the preset window (requires both dt_from and dt_to).
+  return {
+    date_from: from.toISOString().slice(0, 10),
+    date_to: now.toISOString().slice(0, 10),
+  }
 }
 
 function rangeToDates(
