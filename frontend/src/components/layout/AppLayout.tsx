@@ -15,6 +15,7 @@ import { apiClient } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { DataFreshnessIndicator } from '@/components/layout/DataFreshnessIndicator'
 
 const navItems = [
   { to: '/dashboard', label: 'Painel Geral', icon: LayoutDashboard },
@@ -110,6 +111,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </>
         )}
       </nav>
+
+      {/* Data freshness — rendered above the user block so the sidebar
+          always surfaces how recent the underlying data is, even when the
+          user scrolls past the navigation. */}
+      <div className="border-t border-border px-4 py-3">
+        <DataFreshnessIndicator className="w-full justify-start" />
+      </div>
 
       {/* User section */}
       <div className="border-t border-border p-4">
