@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
-import type { MetricsOverview, TrendsData, CollaboratorMentionsData } from '@/types/metrics'
+import type { MetricsOverview, TrendsData, CollaboratorMentionsData, DataStatus } from '@/types/metrics'
+import type { CollaboratorProfile } from '@/types/collaborator'
 import type { ReviewListResponse, ReviewDetailOut } from '@/types/review'
 
 const API = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -183,6 +184,77 @@ export const mockReviewDetail: ReviewDetailOut = {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 3.7 — Collaborator profile + data status
+// ---------------------------------------------------------------------------
+
+export const mockCollaboratorProfile: CollaboratorProfile = {
+  id: 1,
+  full_name: 'Ana Silva',
+  aliases: ['Aninha'],
+  department: 'E-notariado',
+  position: 'Atendente',
+  is_active: true,
+
+  total_mentions: 42,
+  avg_rating: 4.87,
+  ranking: 2,
+  total_collaborators_active: 8,
+
+  mentions_last_6m: 28,
+  mentions_prev_6m: 14,
+  avg_rating_last_6m: 4.9,
+  avg_rating_prev_6m: 4.7,
+
+  rating_distribution: { '1': 1, '2': 0, '3': 2, '4': 6, '5': 33 },
+
+  monthly: [
+    { month: '2025-10-01', mentions: 3, avg_rating: 4.8 },
+    { month: '2025-11-01', mentions: 4, avg_rating: 4.85 },
+    { month: '2025-12-01', mentions: 5, avg_rating: 4.9 },
+    { month: '2026-01-01', mentions: 6, avg_rating: 4.92 },
+    { month: '2026-02-01', mentions: 5, avg_rating: 4.88 },
+    { month: '2026-03-01', mentions: 5, avg_rating: 4.9 },
+  ],
+
+  recent_reviews: [
+    {
+      review_id: 'rev-A-001',
+      rating: 5,
+      comment: 'Ana foi maravilhosa, muito atenciosa no atendimento.',
+      reviewer_name: 'Maria Souza',
+      create_time: '2026-03-20T14:30:00Z',
+      mention_snippet: 'Ana foi maravilhosa',
+      match_score: 0.97,
+    },
+    {
+      review_id: 'rev-A-002',
+      rating: 4,
+      comment: 'Ana resolveu tudo rapidamente, recomendo.',
+      reviewer_name: 'Joao Pereira',
+      create_time: '2026-03-18T10:00:00Z',
+      mention_snippet: 'Ana resolveu tudo rapidamente',
+      match_score: 0.92,
+    },
+    {
+      review_id: 'rev-A-003',
+      rating: 5,
+      comment: null,
+      reviewer_name: 'Carla Oliveira',
+      create_time: '2026-03-10T09:15:00Z',
+      mention_snippet: 'atendida pela Ana',
+      match_score: 0.88,
+    },
+  ],
+}
+
+export const mockDataStatus: DataStatus = {
+  last_review_date: '2026-03-20T14:30:00Z',
+  last_collection_run: '2026-04-12T03:00:00Z',
+  total_reviews: 5372,
+  days_since_last_review: 24,
+}
+
+// ---------------------------------------------------------------------------
 // MSW Handlers
 // ---------------------------------------------------------------------------
 
@@ -211,5 +283,17 @@ export const dashboardHandlers = [
 
   http.get(`${API}/api/v1/metrics/collaborator-mentions`, () => {
     return HttpResponse.json(mockCollaboratorMentions)
+  }),
+
+  http.get(`${API}/api/v1/metrics/data-status`, () => {
+    return HttpResponse.json(mockDataStatus)
+  }),
+
+  // ---- Collaborator profile (Phase 3.7) ----
+  http.get(`${API}/api/v1/collaborators/:id/profile`, ({ params }) => {
+    if (String(params.id) === String(mockCollaboratorProfile.id)) {
+      return HttpResponse.json(mockCollaboratorProfile)
+    }
+    return HttpResponse.json({ detail: 'not_found' }, { status: 404 })
   }),
 ]

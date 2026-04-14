@@ -26,11 +26,11 @@ function createQueryClient() {
   })
 }
 
-function renderPage() {
+function renderPage(initialUrl: string = '/reviews') {
   const queryClient = createQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/reviews']}>
+      <MemoryRouter initialEntries={[initialUrl]}>
         <ReviewsPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -94,6 +94,53 @@ describe('ReviewsPage', () => {
         screen.getByText('Nenhuma avaliação encontrada para os filtros selecionados.'),
       ).toBeInTheDocument()
     })
+  })
+
+  it('initializes rating and sentiment filters from URL search params (AC-3.7.15)', async () => {
+    renderPage('/reviews?rating=5&sentiment=pos')
+
+    // Wait for reviews to finish loading so selects are fully rendered
+    await waitFor(() => {
+      expect(screen.getByText('Maria Souza')).toBeInTheDocument()
+    })
+
+    // Each Select trigger renders its current label in a <span> child.
+    // Scope the lookup to the combobox triggers to avoid matching other
+    // occurrences (e.g. sentiment badges inside review cards).
+    const triggers = screen.getAllByRole('combobox')
+    const triggerLabels = triggers.map((t) => t.textContent ?? '')
+    expect(triggerLabels.some((t) => t.includes('5 estrelas'))).toBe(true)
+    expect(triggerLabels.some((t) => t.includes('Positivo'))).toBe(true)
+  })
+
+  it('persists compact view mode via localStorage on mount (AC-3.7.17)', async () => {
+    // Pre-seed the preference BEFORE rendering — the page reads it
+    // synchronously during initial state init.
+    window.localStorage.setItem('reviews-view-mode', 'compact')
+    try {
+      renderPage()
+
+      // Wait until data is loaded so the active layout is materialized
+      await waitFor(() => {
+        expect(screen.getByText('Maria Souza')).toBeInTheDocument()
+      })
+
+      // The compact toggle button must be pressed (aria-pressed="true").
+      // The expanded toggle must NOT be pressed.
+      const compactBtn = screen.getByRole('button', { name: /Compacto/i })
+      const expandedBtn = screen.getByRole('button', { name: /Expandido/i })
+      expect(compactBtn.getAttribute('aria-pressed')).toBe('true')
+      expect(expandedBtn.getAttribute('aria-pressed')).toBe('false')
+
+      // Compact mode renders rows via divs, NOT via <Card data-slot="card">.
+      // The expanded <Card> elements must not appear for the review items
+      // (the empty-state card is gated on allReviews.length === 0 so it
+      // is absent too when reviews are present).
+      const cards = document.querySelectorAll('[data-slot="card"]')
+      expect(cards.length).toBe(0)
+    } finally {
+      window.localStorage.removeItem('reviews-view-mode')
+    }
   })
 
   it('clicking a review opens detail dialog', async () => {
