@@ -17,6 +17,9 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
 const PerformancePage = lazy(() => import('./pages/PerformancePage'))
+const CollaboratorProfilePage = lazy(
+  () => import('./pages/CollaboratorProfilePage'),
+)
 const CollaboratorsPage = lazy(() => import('./pages/admin/CollaboratorsPage'))
 
 function PageFallback() {
@@ -79,6 +82,14 @@ export const router = createBrowserRouter([
         element: (
           <LazyPage>
             <PerformancePage />
+          </LazyPage>
+        ),
+      },
+      {
+        path: '/collaborators/:id',
+        element: (
+          <LazyPage>
+            <CollaboratorProfilePage />
           </LazyPage>
         ),
       },
