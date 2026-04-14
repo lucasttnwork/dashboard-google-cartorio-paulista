@@ -229,18 +229,50 @@ async def get_trends(
     *,
     months: int = 12,
     location_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    granularity: str = "month",
 ) -> TrendsOut:
-    """Return monthly aggregated trends.
+    """Return aggregated trends bucketed by month or day.
 
-    Uses a live ``GROUP BY`` query for accuracy.  The ``mv_monthly``
-    materialized view is not used because it may be stale (no automatic
-    refresh until Phase 4 adds an arq task for it).
+    Window selection:
+    - When ``date_from`` and/or ``date_to`` are provided, they override
+      ``months`` and bound the window via inclusive ``BETWEEN``.
+    - Otherwise the legacy relative window ``current_date - :months`` is used.
+
+    When ``granularity="day"``, rows are grouped by
+    ``date_trunc('day', create_time)`` and the value lands in
+    ``MonthData.day`` instead of ``MonthData.month``.
     """
-    data: list[MonthData] = []
+    bucket_unit = "day" if granularity == "day" else "month"
+    use_range = date_from is not None or date_to is not None
 
-    # --- Live GROUP BY (always used) -----------------------------------
-    fallback_sql = text(
-        "SELECT date_trunc('month', r.create_time) AS month, "
+    where_parts: list[str] = []
+    params: dict[str, object] = {}
+
+    if use_range:
+        dt_from = _parse_date(date_from)
+        dt_to = _parse_date(date_to)
+        if dt_from is not None:
+            where_parts.append("r.create_time >= :dt_from")
+            params["dt_from"] = dt_from
+        if dt_to is not None:
+            where_parts.append("r.create_time <= :dt_to")
+            params["dt_to"] = dt_to
+    else:
+        where_parts.append(
+            "r.create_time >= current_date - interval '1 month' * :months"
+        )
+        params["months"] = months
+
+    if location_id:
+        where_parts.append("r.location_id = :loc")
+        params["loc"] = location_id
+
+    where_sql = " AND ".join(where_parts)
+
+    sql = text(
+        f"SELECT date_trunc('{bucket_unit}', r.create_time) AS bucket, "
         "       COUNT(*) AS total_reviews, "
         "       ROUND(AVG(r.rating)::numeric, 2) AS avg_rating, "
         "       SUM(CASE WHEN rl.is_enotariado THEN 1 ELSE 0 END) AS reviews_enotariado, "
@@ -250,31 +282,35 @@ async def get_trends(
         "             * 100 / NULLIF(COUNT(*), 0), 2) AS reply_rate_pct "
         "FROM reviews r "
         "LEFT JOIN review_labels rl USING (review_id) "
-        "WHERE r.create_time >= current_date - interval '1 month' * :months "
-        + ("AND r.location_id = :loc " if location_id else "")
-        + "GROUP BY 1 ORDER BY 1"
+        f"WHERE {where_sql} "
+        "GROUP BY 1 ORDER BY 1"
     )
-    params = {"months": months}
-    if location_id:
-        params["loc"] = location_id
 
-    result = await session.execute(fallback_sql, params)
+    result = await session.execute(sql, params)
     rows = result.all()
 
+    data: list[MonthData] = []
     for r in rows:
-        data.append(
-            MonthData(
-                month=r[0].isoformat() if hasattr(r[0], "isoformat") else str(r[0]),
-                total_reviews=int(r[1]),
-                avg_rating=_round2(r[2]) or 0.0,
-                reviews_enotariado=int(r[3] or 0),
-                avg_rating_enotariado=_round2(r[4]),
-                reply_rate_pct=float(r[5]) if r[5] is not None else 0.0,
-            )
+        bucket_value = (
+            r[0].isoformat() if hasattr(r[0], "isoformat") else str(r[0])
         )
+        item_kwargs: dict[str, object] = {
+            "total_reviews": int(r[1]),
+            "avg_rating": _round2(r[2]) or 0.0,
+            "reviews_enotariado": int(r[3] or 0),
+            "avg_rating_enotariado": _round2(r[4]),
+            "reply_rate_pct": float(r[5]) if r[5] is not None else 0.0,
+        }
+        if granularity == "day":
+            item_kwargs["day"] = bucket_value
+        else:
+            item_kwargs["month"] = bucket_value
+        data.append(MonthData(**item_kwargs))
 
-    logger.debug("metrics.trends.fallback", count=len(data))
-    return TrendsOut(months=data)
+    logger.debug(
+        "metrics.trends", count=len(data), granularity=granularity, use_range=use_range
+    )
+    return TrendsOut(months=data, granularity=granularity)
 
 
 # ---------------------------------------------------------------------------
@@ -287,9 +323,20 @@ async def get_collaborator_mentions(
     *,
     months: int = 12,
     include_inactive: bool = False,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> CollaboratorMentionsOut:
-    """Per-collaborator mention counts with monthly breakdown."""
-    cutoff = text("current_date - interval '1 month' * :months")
+    """Per-collaborator mention counts with monthly breakdown.
+
+    When ``date_from`` and/or ``date_to`` are provided they override the
+    relative ``months`` window and bound the filter via inclusive
+    ``BETWEEN``. The temporal filter is applied to BOTH the totals query
+    and the ``monthly[]`` sub-aggregation so that short windows report
+    counts restricted to the requested range.
+    """
+    use_range = date_from is not None or date_to is not None
+    dt_from = _parse_date(date_from) if use_range else None
+    dt_to = _parse_date(date_to) if use_range else None
 
     # --- Aggregated totals per collaborator ----------------------------
     totals_stmt = (
@@ -302,15 +349,26 @@ async def get_collaborator_mentions(
         )
         .join(ReviewCollaborator, ReviewCollaborator.collaborator_id == Collaborator.id)
         .join(Review, Review.review_id == ReviewCollaborator.review_id)
-        .where(Review.create_time >= cutoff)
     )
+
+    exec_params: dict[str, object] = {}
+    if use_range:
+        if dt_from is not None:
+            totals_stmt = totals_stmt.where(Review.create_time >= dt_from)
+        if dt_to is not None:
+            totals_stmt = totals_stmt.where(Review.create_time <= dt_to)
+    else:
+        cutoff = text("current_date - interval '1 month' * :months")
+        totals_stmt = totals_stmt.where(Review.create_time >= cutoff)
+        exec_params["months"] = months
+
     if not include_inactive:
         totals_stmt = totals_stmt.where(Collaborator.is_active.is_(True))
     totals_stmt = totals_stmt.group_by(Collaborator.id).order_by(
         func.count(ReviewCollaborator.review_id).desc()
     )
 
-    totals_rows = (await session.execute(totals_stmt, {"months": months})).all()
+    totals_rows = (await session.execute(totals_stmt, exec_params)).all()
 
     if not totals_rows:
         return CollaboratorMentionsOut(collaborators=[])
@@ -326,15 +384,22 @@ async def get_collaborator_mentions(
             func.avg(Review.rating).label("avg_rating"),
         )
         .join(Review, Review.review_id == ReviewCollaborator.review_id)
-        .where(
-            ReviewCollaborator.collaborator_id.in_(collab_ids),
-            Review.create_time >= cutoff,
-        )
-        .group_by(ReviewCollaborator.collaborator_id, text("2"))
-        .order_by(ReviewCollaborator.collaborator_id, text("2"))
+        .where(ReviewCollaborator.collaborator_id.in_(collab_ids))
     )
+    if use_range:
+        if dt_from is not None:
+            monthly_stmt = monthly_stmt.where(Review.create_time >= dt_from)
+        if dt_to is not None:
+            monthly_stmt = monthly_stmt.where(Review.create_time <= dt_to)
+    else:
+        cutoff = text("current_date - interval '1 month' * :months")
+        monthly_stmt = monthly_stmt.where(Review.create_time >= cutoff)
 
-    monthly_rows = (await session.execute(monthly_stmt, {"months": months})).all()
+    monthly_stmt = monthly_stmt.group_by(
+        ReviewCollaborator.collaborator_id, text("2")
+    ).order_by(ReviewCollaborator.collaborator_id, text("2"))
+
+    monthly_rows = (await session.execute(monthly_stmt, exec_params)).all()
 
     # Index monthly data by collaborator_id
     monthly_map: dict[int, list[CollaboratorMonthData]] = {}

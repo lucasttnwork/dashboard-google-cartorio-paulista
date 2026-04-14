@@ -46,9 +46,15 @@ class MetricsOverviewOut(BaseModel):
 
 
 class MonthData(BaseModel):
-    """Single month data point for the trends chart."""
+    """Single bucket data point for the trends chart.
 
-    month: str
+    ``month`` is populated when the response is grouped by month (default);
+    ``day`` is populated when ``granularity=day``. Exactly one of the two
+    carries an ISO date string, the other stays ``None``.
+    """
+
+    month: str | None = None
+    day: str | None = None
     total_reviews: int
     avg_rating: float
     reviews_enotariado: int
@@ -66,9 +72,15 @@ class DataStatusOut(BaseModel):
 
 
 class TrendsOut(BaseModel):
-    """Monthly trends over the selected period."""
+    """Trends over the selected period.
+
+    The list field keeps the legacy name ``months`` for backwards
+    compatibility with the frontend; ``granularity`` echoes the requested
+    bucketing so the client knows whether to read ``month`` or ``day``.
+    """
 
     months: list[MonthData]
+    granularity: str = "month"
 
 
 class CollaboratorMonthData(BaseModel):
