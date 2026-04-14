@@ -6,6 +6,7 @@ import type {
   MyPerformance,
   SystemUser,
   TrendsData,
+  TrendsGranularity,
 } from '@/types/metrics'
 import type { CollaboratorProfile } from '@/types/collaborator'
 
@@ -25,6 +26,9 @@ export async function fetchMetricsOverview(params?: {
 export async function fetchTrends(params?: {
   months?: number
   location_id?: string
+  date_from?: string
+  date_to?: string
+  granularity?: TrendsGranularity
 }): Promise<TrendsData> {
   const { data } = await apiClient.get<TrendsData>(`${BASE}/trends`, { params })
   return data
@@ -33,6 +37,8 @@ export async function fetchTrends(params?: {
 export async function fetchCollaboratorMentions(params?: {
   months?: number
   include_inactive?: boolean
+  date_from?: string
+  date_to?: string
 }): Promise<CollaboratorMentionsData> {
   const { data } = await apiClient.get<CollaboratorMentionsData>(
     `${BASE}/collaborator-mentions`,

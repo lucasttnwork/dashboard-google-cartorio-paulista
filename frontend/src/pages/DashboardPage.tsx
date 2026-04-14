@@ -28,13 +28,14 @@ import {
   useTrends,
   useCollaboratorMentions,
 } from '@/hooks/use-metrics'
-import type { MetricsOverview } from '@/types/metrics'
+import type { MetricsOverview, TrendsGranularity } from '@/types/metrics'
 import {
   formatDecimal,
   formatNumber,
   formatPercent,
   toTitleCase,
 } from '@/lib/format'
+import { pickGranularity } from '@/lib/period'
 import { CHART_COLORS } from '@/lib/chart-config'
 import { CustomTooltip as PremiumTooltip } from '@/components/charts/CustomTooltip'
 import {
@@ -79,6 +80,22 @@ const MONTHS_PT = [
 function formatMonth(isoDate: string): string {
   const d = new Date(isoDate)
   return `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`
+}
+
+function formatDay(isoDate: string): string {
+  const d = new Date(isoDate)
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${dd} ${MONTHS_PT[d.getMonth()]?.toLowerCase() ?? ''}`
+}
+
+function axisLabel(
+  bucket: { month?: string; day?: string },
+  granularity: TrendsGranularity,
+): string {
+  if (granularity === 'day' && bucket.day) return formatDay(bucket.day)
+  if (bucket.month) return formatMonth(bucket.month)
+  if (bucket.day) return formatDay(bucket.day)
+  return ''
 }
 
 // ---------------------------------------------------------------------------
@@ -181,9 +198,20 @@ function kpiValues(overview: MetricsOverview | undefined) {
  * `previous_period` is null when `compare_previous=false` or when the
  * current period is the whole history).
  */
-function kpiDeltas(overview: MetricsOverview | undefined) {
+export function kpiDeltas(overview: MetricsOverview | undefined) {
   const prev = overview?.previous_period
   if (!overview || !prev) {
+    return {
+      total: null,
+      avg: null,
+      fiveStar: null,
+      replyRate: null,
+    } as const
+  }
+  // F5 (AC-3.8.5) — the local dataset ends in Sep/2025 so the 12-month
+  // baseline can fall entirely outside it; showing "+5372" against an
+  // empty previous period is misleading, collapse to "Estável".
+  if (prev.total_reviews === 0) {
     return {
       total: null,
       avg: null,
@@ -206,9 +234,16 @@ function kpiDeltas(overview: MetricsOverview | undefined) {
 function ReviewsChart({
   data,
   isLoading,
+  granularity,
 }: {
-  data: { month: string; total_reviews: number; avg_rating: number }[]
+  data: {
+    month?: string
+    day?: string
+    total_reviews: number
+    avg_rating: number
+  }[]
   isLoading: boolean
+  granularity: TrendsGranularity
 }) {
   if (isLoading) {
     return (
@@ -239,15 +274,18 @@ function ReviewsChart({
   }
 
   const chartData = data.map((d) => ({
-    name: formatMonth(d.month),
+    name: axisLabel(d, granularity),
     Avaliações: d.total_reviews,
     'Nota Média': d.avg_rating,
   }))
 
+  const title =
+    granularity === 'day' ? 'Avaliações por Dia' : 'Avaliações por Mês'
+
   return (
     <Card className="col-span-full lg:col-span-1">
       <CardHeader>
-        <CardTitle>Avaliações por Mês</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
@@ -301,9 +339,11 @@ function ReviewsChart({
 function RatingTrendChart({
   data,
   isLoading,
+  granularity,
 }: {
-  data: { month: string; avg_rating: number }[]
+  data: { month?: string; day?: string; avg_rating: number }[]
   isLoading: boolean
+  granularity: TrendsGranularity
 }) {
   if (isLoading) {
     return (
@@ -334,7 +374,7 @@ function RatingTrendChart({
   }
 
   const chartData = data.map((d) => ({
-    name: formatMonth(d.month),
+    name: axisLabel(d, granularity),
     'Nota Média': d.avg_rating,
   }))
 
@@ -521,12 +561,23 @@ export default function DashboardPage() {
   }, [isCustom, customRange, presetMonths])
 
   const overview = useMetricsOverview({ ...dateParams, compare_previous: true })
-  // Trends still hydrates off a month window — the backend endpoint does
-  // not yet accept date_from/date_to. In custom mode we approximate with
-  // the full history (60 months) so the timeline covers the user's range.
-  const trendsMonths = isCustom ? 60 : presetMonths
-  const trends = useTrends({ months: trendsMonths })
-  const mentions = useCollaboratorMentions({ months: trendsMonths })
+  // AC-3.8.9/3.8.10 — trends and mentions cascade from the same date window
+  // used by overview, so the chart and the "Top Mencionados" table always
+  // reflect the selected period instead of the full history.
+  const granularity = pickGranularity({
+    months: isCustom ? undefined : presetMonths,
+    dateFrom: dateParams.date_from,
+    dateTo: dateParams.date_to,
+  })
+  const trends = useTrends({
+    ...dateParams,
+    months: isCustom ? undefined : presetMonths,
+    granularity,
+  })
+  const mentions = useCollaboratorMentions({
+    ...dateParams,
+    months: isCustom ? undefined : presetMonths,
+  })
 
   // Error toast — fires once when overview fails
   useEffect(() => {
@@ -539,6 +590,8 @@ export default function DashboardPage() {
   const deltas = useMemo(() => kpiDeltas(overview.data), [overview.data])
 
   const trendsData = trends.data?.months ?? []
+  const trendsGranularity: TrendsGranularity =
+    trends.data?.granularity ?? granularity
 
   const topCollaborators = (mentions.data?.collaborators ?? [])
     .slice()
@@ -652,8 +705,16 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ReviewsChart data={trendsData} isLoading={trends.isLoading} />
-        <RatingTrendChart data={trendsData} isLoading={trends.isLoading} />
+        <ReviewsChart
+          data={trendsData}
+          isLoading={trends.isLoading}
+          granularity={trendsGranularity}
+        />
+        <RatingTrendChart
+          data={trendsData}
+          isLoading={trends.isLoading}
+          granularity={trendsGranularity}
+        />
       </div>
 
       {/* Top collaborators */}
