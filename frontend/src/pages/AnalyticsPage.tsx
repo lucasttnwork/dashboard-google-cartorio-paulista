@@ -47,6 +47,8 @@ import { CHART_COLORS } from '@/lib/chart-config'
 import { CustomTooltip as PremiumTooltip } from '@/components/charts/CustomTooltip'
 import { CollaboratorCompareChart } from '@/components/charts/CollaboratorCompareChart'
 import { cn } from '@/lib/utils'
+import { pickGranularity } from '@/lib/period'
+import type { TrendsGranularity } from '@/types/metrics'
 
 // ---------------------------------------------------------------------------
 // Local formatters — intentionally duplicated from `lib/format` so this page
@@ -62,6 +64,22 @@ const MONTHS_PT = [
 function formatMonth(isoDate: string): string {
   const d = new Date(isoDate)
   return `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`
+}
+
+function formatDay(isoDate: string): string {
+  const d = new Date(isoDate)
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${dd} ${(MONTHS_PT[d.getMonth()] ?? '').toLowerCase()}`
+}
+
+function bucketLabel(
+  bucket: { month?: string; day?: string },
+  granularity: TrendsGranularity,
+): string {
+  if (granularity === 'day' && bucket.day) return formatDay(bucket.day)
+  if (bucket.month) return formatMonth(bucket.month)
+  if (bucket.day) return formatDay(bucket.day)
+  return ''
 }
 
 function formatNumber(n: number): string {
@@ -177,6 +195,32 @@ export default function AnalyticsPage() {
     return Number(periodValue)
   }, [isCustom, customRange, periodValue])
 
+  /**
+   * Absolute date window used by both hooks. In custom mode we only emit
+   * date_from/date_to once the user has picked both endpoints — otherwise
+   * the query key would flip twice in a row and trigger an extra fetch.
+   * AC-3.8.9 / AC-3.8.13: the collaborator chart, compare chart, and the
+   * trend chart all read from the same window.
+   */
+  const dateParams: { date_from?: string; date_to?: string } = useMemo(() => {
+    if (!isCustom) return {}
+    if (!customRange.from || !customRange.to) return {}
+    return {
+      date_from: customRange.from.toISOString().slice(0, 10),
+      date_to: customRange.to.toISOString().slice(0, 10),
+    }
+  }, [isCustom, customRange])
+
+  const granularity: TrendsGranularity = useMemo(
+    () =>
+      pickGranularity({
+        months: isCustom ? undefined : Number(periodValue),
+        dateFrom: dateParams.date_from,
+        dateTo: dateParams.date_to,
+      }),
+    [isCustom, periodValue, dateParams.date_from, dateParams.date_to],
+  )
+
   const handlePeriodChange = useCallback(
     (next: PeriodValue) => {
       startTransition(() => {
@@ -268,16 +312,26 @@ export default function AnalyticsPage() {
   // Data fetching
   // -----------------------------------------------------------------------
 
-  const trends = useTrends({ months: effectiveMonths })
-  const collaborators = useCollaboratorMentions({
-    months: effectiveMonths,
-    include_inactive: includeInactive,
+  const trends = useTrends({
+    months: isCustom ? undefined : effectiveMonths,
+    date_from: dateParams.date_from,
+    date_to: dateParams.date_to,
+    granularity,
   })
+  const collaborators = useCollaboratorMentions({
+    months: isCustom ? undefined : effectiveMonths,
+    include_inactive: includeInactive,
+    date_from: dateParams.date_from,
+    date_to: dateParams.date_to,
+  })
+
+  const effectiveGranularity: TrendsGranularity =
+    trends.data?.granularity ?? granularity
 
   const chartData =
     trends.data?.months.map((m) => ({
       ...m,
-      label: formatMonth(m.month),
+      label: bucketLabel(m, effectiveGranularity),
       other_reviews: m.total_reviews - m.reviews_enotariado,
     })) ?? []
 

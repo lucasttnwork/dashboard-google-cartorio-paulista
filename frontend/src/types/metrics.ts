@@ -30,8 +30,11 @@ export interface MetricsOverview {
   previous_period: PreviousPeriod | null
 }
 
+export type TrendsGranularity = 'month' | 'day'
+
 export interface MonthData {
-  month: string
+  month?: string
+  day?: string
   total_reviews: number
   avg_rating: number
   reviews_enotariado: number
@@ -48,6 +51,7 @@ export interface DataStatus {
 
 export interface TrendsData {
   months: MonthData[]
+  granularity?: TrendsGranularity
 }
 
 export interface CollaboratorMonthData {

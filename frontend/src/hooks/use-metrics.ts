@@ -8,6 +8,7 @@ import {
   fetchSystemUsers,
   fetchTrends,
 } from '@/lib/api/metrics'
+import type { TrendsGranularity } from '@/types/metrics'
 
 export function useMetricsOverview(params?: {
   date_from?: string
@@ -32,9 +33,19 @@ export function useMetricsOverview(params?: {
 export function useTrends(params?: {
   months?: number
   location_id?: string
+  date_from?: string
+  date_to?: string
+  granularity?: TrendsGranularity
 }) {
   return useQuery({
-    queryKey: ['metrics-trends', params],
+    queryKey: [
+      'metrics-trends',
+      params?.months ?? null,
+      params?.location_id ?? null,
+      params?.date_from ?? null,
+      params?.date_to ?? null,
+      params?.granularity ?? 'month',
+    ],
     queryFn: () => fetchTrends(params),
     staleTime: 60_000,
   })
@@ -43,9 +54,17 @@ export function useTrends(params?: {
 export function useCollaboratorMentions(params?: {
   months?: number
   include_inactive?: boolean
+  date_from?: string
+  date_to?: string
 }) {
   return useQuery({
-    queryKey: ['metrics-collaborator-mentions', params],
+    queryKey: [
+      'metrics-collaborator-mentions',
+      params?.months ?? null,
+      params?.include_inactive ?? false,
+      params?.date_from ?? null,
+      params?.date_to ?? null,
+    ],
     queryFn: () => fetchCollaboratorMentions(params),
     staleTime: 60_000,
   })
