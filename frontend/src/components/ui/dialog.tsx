@@ -43,9 +43,16 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  closeLabel = "Fechar",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /**
+   * Accessible label for the close button. Defaults to PT-BR "Fechar".
+   * Dialogs whose purpose would benefit from a more specific label
+   * (e.g. "Fechar detalhes da avaliação") can override it.
+   */
+  closeLabel?: string
 }) {
   return (
     <DialogPortal>
@@ -62,6 +69,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
+            aria-label={closeLabel}
             render={
               <Button
                 variant="ghost"
@@ -70,9 +78,8 @@ function DialogContent({
               />
             }
           >
-            <XIcon
-            />
-            <span className="sr-only">Close</span>
+            <XIcon />
+            <span className="sr-only">{closeLabel}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>

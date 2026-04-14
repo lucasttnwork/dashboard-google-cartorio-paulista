@@ -30,17 +30,20 @@ export function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn('p-3', className)}
       classNames={{
-        months: 'flex flex-col sm:flex-row gap-4',
+        // F1 (phase 3.8): `months` is the positioning context for the
+        // absolute `nav`. The caption must NOT create its own positioning
+        // context or it swallows pointer events on the ◀ ▶ buttons.
+        months: 'relative flex flex-col sm:flex-row gap-4',
         month: 'flex flex-col gap-3',
         month_caption:
-          'flex justify-center pt-1 relative items-center text-sm font-medium',
+          'flex justify-center pt-1 items-center text-sm font-medium pointer-events-none',
         caption_label: 'text-sm font-medium capitalize',
-        nav: 'flex items-center gap-1 absolute right-1 top-1',
+        nav: 'absolute top-1 right-1 z-10 flex items-center gap-1 pointer-events-auto',
         button_previous: cn(
-          'inline-flex size-7 items-center justify-center rounded-md border border-border bg-background hover:bg-muted transition-colors',
+          'inline-flex size-7 items-center justify-center rounded-md border border-border bg-background hover:bg-muted transition-colors pointer-events-auto',
         ),
         button_next: cn(
-          'inline-flex size-7 items-center justify-center rounded-md border border-border bg-background hover:bg-muted transition-colors',
+          'inline-flex size-7 items-center justify-center rounded-md border border-border bg-background hover:bg-muted transition-colors pointer-events-auto',
         ),
         month_grid: 'w-full border-collapse',
         weekdays: 'flex',

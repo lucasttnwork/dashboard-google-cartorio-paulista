@@ -143,6 +143,53 @@ describe('ReviewsPage', () => {
     }
   })
 
+  it('F6: normalizes ?sentiment=positive to canonical pos', async () => {
+    let capturedSentiment: string | null = null
+    server.use(
+      http.get('*/api/v1/reviews', ({ request }) => {
+        capturedSentiment = new URL(request.url).searchParams.get('sentiment')
+        return HttpResponse.json({
+          items: [],
+          next_cursor: null,
+          has_more: false,
+          total: 0,
+        })
+      }),
+    )
+
+    renderPage('/reviews?sentiment=positive')
+
+    await waitFor(() => {
+      expect(capturedSentiment).toBe('pos')
+    })
+  })
+
+  it('F3: caps collaborator_id at 3 when URL carries 4+ values', async () => {
+    let capturedIds: string[] = []
+    server.use(
+      http.get('*/api/v1/reviews', ({ request }) => {
+        capturedIds = new URL(request.url).searchParams.getAll(
+          'collaborator_id',
+        )
+        return HttpResponse.json({
+          items: [],
+          next_cursor: null,
+          has_more: false,
+          total: 0,
+        })
+      }),
+    )
+
+    renderPage(
+      '/reviews?collaborator_id=1&collaborator_id=2&collaborator_id=3&collaborator_id=4',
+    )
+
+    await waitFor(() => {
+      expect(capturedIds).toHaveLength(3)
+    })
+    expect(capturedIds).toEqual(['1', '2', '3'])
+  })
+
   it('clicking a review opens detail dialog', async () => {
     renderPage()
 
