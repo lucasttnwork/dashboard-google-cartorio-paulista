@@ -6,7 +6,7 @@ and per-collaborator mention breakdowns (Phase 3).
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, Query, Response
@@ -68,8 +68,18 @@ async def get_trends(
     session: Annotated[AsyncSession, Depends(get_session)],
     months: int = Query(default=12, ge=1, le=60),
     location_id: str | None = Query(default=None),
+    date_from: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
+    date_to: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
+    granularity: Literal["month", "day"] = Query(default="month"),
 ) -> TrendsOut:
-    return await svc.get_trends(session, months=months, location_id=location_id)
+    return await svc.get_trends(
+        session,
+        months=months,
+        location_id=location_id,
+        date_from=date_from,
+        date_to=date_to,
+        granularity=granularity,
+    )
 
 
 @router.get("/collaborator-mentions", response_model=CollaboratorMentionsOut)
@@ -78,9 +88,15 @@ async def get_collaborator_mentions(
     session: Annotated[AsyncSession, Depends(get_session)],
     months: int = Query(default=12, ge=1, le=60),
     include_inactive: bool = Query(default=False),
+    date_from: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
+    date_to: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
 ) -> CollaboratorMentionsOut:
     return await svc.get_collaborator_mentions(
-        session, months=months, include_inactive=include_inactive
+        session,
+        months=months,
+        include_inactive=include_inactive,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

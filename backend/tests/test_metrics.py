@@ -852,3 +852,225 @@ class TestDataStatus:
         assert body["total_reviews"] == 1
         assert body["days_since_last_review"] is not None
         assert body["days_since_last_review"] >= 0
+
+
+# ===========================================================================
+# 6. Phase 3.8 — trends date range + granularity; collaborator-mentions range
+# ===========================================================================
+
+
+class TestTrendsGranularity:
+    """``granularity`` and ``date_from``/``date_to`` on GET /metrics/trends."""
+
+    async def test_trends_default_granularity_is_month(
+        self, client: AsyncClient
+    ) -> None:
+        """Default call forwards granularity='month' and no date bounds."""
+        mock_fn = AsyncMock(
+            return_value=TrendsOut(months=[], granularity="month")
+        )
+        with patch("app.api.v1.metrics.svc.get_trends", mock_fn):
+            resp = await client.get("/api/v1/metrics/trends")
+        assert resp.status_code == 200
+        kwargs = mock_fn.call_args.kwargs
+        assert kwargs["granularity"] == "month"
+        assert kwargs["date_from"] is None
+        assert kwargs["date_to"] is None
+        # Default relative window still intact.
+        assert kwargs["months"] == 12
+        # Echo field is present in the serialized response.
+        assert resp.json()["granularity"] == "month"
+
+    async def test_trends_granularity_day_shape(
+        self, client: AsyncClient
+    ) -> None:
+        """Day-granularity response exposes ``day`` and omits ``month``."""
+        mock_return = TrendsOut(
+            granularity="day",
+            months=[
+                MonthData(
+                    day="2026-02-01",
+                    total_reviews=3,
+                    avg_rating=4.5,
+                    reviews_enotariado=1,
+                    avg_rating_enotariado=5.0,
+                ),
+                MonthData(
+                    day="2026-02-02",
+                    total_reviews=5,
+                    avg_rating=4.2,
+                    reviews_enotariado=2,
+                    avg_rating_enotariado=4.5,
+                ),
+            ],
+        )
+        with patch(
+            "app.api.v1.metrics.svc.get_trends",
+            new_callable=AsyncMock,
+            return_value=mock_return,
+        ):
+            resp = await client.get(
+                "/api/v1/metrics/trends?granularity=day"
+                "&date_from=2026-02-01&date_to=2026-02-02"
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["granularity"] == "day"
+        assert len(body["months"]) == 2
+        first = body["months"][0]
+        assert first["day"] == "2026-02-01"
+        assert first["month"] is None
+        assert first["total_reviews"] == 3
+
+    async def test_trends_granularity_day_passes_date_range(
+        self, client: AsyncClient
+    ) -> None:
+        """A 28-day range of day buckets reaches the service with both bounds."""
+        days = [
+            MonthData(
+                day=f"2026-02-{d:02d}",
+                total_reviews=1,
+                avg_rating=5.0,
+                reviews_enotariado=0,
+            )
+            for d in range(1, 29)
+        ]
+        mock_fn = AsyncMock(
+            return_value=TrendsOut(months=days, granularity="day")
+        )
+        with patch("app.api.v1.metrics.svc.get_trends", mock_fn):
+            resp = await client.get(
+                "/api/v1/metrics/trends?granularity=day"
+                "&date_from=2026-02-01&date_to=2026-02-28"
+            )
+        assert resp.status_code == 200
+        assert len(resp.json()["months"]) == 28
+        kwargs = mock_fn.call_args.kwargs
+        assert kwargs["granularity"] == "day"
+        assert kwargs["date_from"] == "2026-02-01"
+        assert kwargs["date_to"] == "2026-02-28"
+
+    async def test_trends_date_range_default_granularity_is_month(
+        self, client: AsyncClient
+    ) -> None:
+        """``date_from``/``date_to`` without explicit granularity stay monthly."""
+        mock_fn = AsyncMock(
+            return_value=TrendsOut(months=[], granularity="month")
+        )
+        with patch("app.api.v1.metrics.svc.get_trends", mock_fn):
+            resp = await client.get(
+                "/api/v1/metrics/trends"
+                "?date_from=2026-01-01&date_to=2026-03-31"
+            )
+        assert resp.status_code == 200
+        kwargs = mock_fn.call_args.kwargs
+        assert kwargs["granularity"] == "month"
+        assert kwargs["date_from"] == "2026-01-01"
+        assert kwargs["date_to"] == "2026-03-31"
+        assert resp.json()["granularity"] == "month"
+
+    async def test_trends_invalid_granularity_rejected(
+        self, client: AsyncClient
+    ) -> None:
+        """``granularity`` is validated by the ``Literal`` type."""
+        resp = await client.get("/api/v1/metrics/trends?granularity=week")
+        # FastAPI validation returns 422 for unknown Literal values.
+        assert resp.status_code == 422
+
+
+class TestCollaboratorMentionsDateRange:
+    """``date_from``/``date_to`` on GET /metrics/collaborator-mentions."""
+
+    async def test_collaborator_mentions_without_date_params_unchanged(
+        self, client: AsyncClient
+    ) -> None:
+        """No date params → service receives ``date_from=None``/``date_to=None``."""
+        mock_fn = AsyncMock(
+            return_value=CollaboratorMentionsOut(collaborators=[])
+        )
+        with patch(
+            "app.api.v1.metrics.svc.get_collaborator_mentions", mock_fn
+        ):
+            resp = await client.get("/api/v1/metrics/collaborator-mentions")
+        assert resp.status_code == 200
+        kwargs = mock_fn.call_args.kwargs
+        assert kwargs["date_from"] is None
+        assert kwargs["date_to"] is None
+        assert kwargs["months"] == 12
+
+    async def test_collaborator_mentions_date_range_passed_to_service(
+        self, client: AsyncClient
+    ) -> None:
+        """Both date bounds reach the service with the exact values given."""
+        mock_fn = AsyncMock(
+            return_value=CollaboratorMentionsOut(
+                collaborators=[
+                    CollaboratorMentionOut(
+                        collaborator_id=7,
+                        full_name="Ana Ranged",
+                        is_active=True,
+                        total_mentions=3,
+                        avg_rating_mentioned=4.3,
+                        monthly=[
+                            CollaboratorMonthData(
+                                month="2026-02-01",
+                                mentions=3,
+                                avg_rating=4.3,
+                            ),
+                        ],
+                    ),
+                ]
+            )
+        )
+        with patch(
+            "app.api.v1.metrics.svc.get_collaborator_mentions", mock_fn
+        ):
+            resp = await client.get(
+                "/api/v1/metrics/collaborator-mentions"
+                "?date_from=2026-02-01&date_to=2026-02-28"
+            )
+        assert resp.status_code == 200
+        kwargs = mock_fn.call_args.kwargs
+        assert kwargs["date_from"] == "2026-02-01"
+        assert kwargs["date_to"] == "2026-02-28"
+        body = resp.json()
+        assert len(body["collaborators"]) == 1
+        assert body["collaborators"][0]["total_mentions"] == 3
+
+    async def test_collaborator_mentions_future_range_returns_empty(
+        self, client: AsyncClient
+    ) -> None:
+        """A range well into the future yields an empty collaborators list."""
+        mock_fn = AsyncMock(
+            return_value=CollaboratorMentionsOut(collaborators=[])
+        )
+        with patch(
+            "app.api.v1.metrics.svc.get_collaborator_mentions", mock_fn
+        ):
+            resp = await client.get(
+                "/api/v1/metrics/collaborator-mentions"
+                "?date_from=2099-01-01&date_to=2099-12-31"
+            )
+        assert resp.status_code == 200
+        assert resp.json() == {"collaborators": []}
+        kwargs = mock_fn.call_args.kwargs
+        assert kwargs["date_from"] == "2099-01-01"
+        assert kwargs["date_to"] == "2099-12-31"
+
+    async def test_collaborator_mentions_only_date_from_passes_through(
+        self, client: AsyncClient
+    ) -> None:
+        """A single bound (``date_from`` only) still reaches the service."""
+        mock_fn = AsyncMock(
+            return_value=CollaboratorMentionsOut(collaborators=[])
+        )
+        with patch(
+            "app.api.v1.metrics.svc.get_collaborator_mentions", mock_fn
+        ):
+            resp = await client.get(
+                "/api/v1/metrics/collaborator-mentions?date_from=2026-03-01"
+            )
+        assert resp.status_code == 200
+        kwargs = mock_fn.call_args.kwargs
+        assert kwargs["date_from"] == "2026-03-01"
+        assert kwargs["date_to"] is None
