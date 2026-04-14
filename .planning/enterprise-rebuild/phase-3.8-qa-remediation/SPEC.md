@@ -40,7 +40,7 @@ Fechar os achados do QA independente da Fase 3.7 (1 MAJOR, 2 MINOR, 3 UX, 5 A11Y
 | C3 | `/api/v1/metrics/collaborator-mentions` aceita `date_from`/`date_to` (além de `months`), aplicando o filtro temporal a TODAS as agregações (total_mentions, avg_rating, monthly) |
 | C4 | Dashboard: quando modo custom está ativo, passa `date_from`/`date_to` para `useTrends` e `useCollaboratorMentions` — a tabela "Top Mencionados" respeita o intervalo custom |
 | C5 | Analytics: idem C4 — tabela de colaboradores, gráfico comparativo e gráfico de tendência todos respeitam o range custom |
-| C6 | Dashboard + Analytics: quando o range selecionado for ≤ 60 dias (preset "últimos 3 meses" ou custom curto), o gráfico de tendência automaticamente usa `granularity=day` em vez de `month` |
+| C6 | Dashboard + Analytics: quando o range selecionado for ≤ 60 dias (preset "últimos 2 meses" ou custom curto), o gráfico de tendência automaticamente usa `granularity=day` em vez de `month`. Ranges > 60 dias permanecem mensais para preservar legibilidade (ver nota §Decisão C6 abaixo) |
 | T1 | Testes pytest novos cobrindo `date_from`/`date_to` + `granularity=day` em `/trends` e `/collaborator-mentions` |
 | T2 | Testes vitest cobrindo o comportamento cascading nos hooks + fix visual do Calendar |
 
@@ -57,9 +57,9 @@ Fechar os achados do QA independente da Fase 3.7 (1 MAJOR, 2 MINOR, 3 UX, 5 A11Y
 - **AC-3.8.7** Cada página tem exatamente um `<h1>`. Skip link presente em `AppLayout`
 - **AC-3.8.8** `ReviewDetailDialog` close tem `aria-label` PT-BR
 - **AC-3.8.9** Selecionar "Últimos 3 meses" no Dashboard → tabela "Top Mencionados" mostra colaboradores com contagens APENAS dos últimos 3 meses (não do histórico inteiro)
-- **AC-3.8.10** Selecionar "Últimos 3 meses" no Dashboard → gráfico de tendência exibe granularidade DIÁRIA (uma coluna por dia do período)
+- **AC-3.8.10** Selecionar "Últimos 2 meses" (ou qualquer range custom ≤ 60 dias) no Dashboard → gráfico de tendência exibe granularidade DIÁRIA (uma coluna por dia do período). Ranges > 60 dias (inclui "Últimos 3 meses" ≈ 90 dias) permanecem mensais — ver §Decisão C6
 - **AC-3.8.11** Selecionar range custom 01 fev a 28 fev no Dashboard → gráfico exibe 28 colunas (dias)
-- **AC-3.8.12** Selecionar "Últimos 12 meses" → gráfico mantém granularidade mensal (12 colunas)
+- **AC-3.8.12** Selecionar "Últimos 3 meses", "Últimos 6 meses" ou "Últimos 12 meses" → gráfico mantém granularidade mensal (3, 6, 12 colunas respectivamente)
 - **AC-3.8.13** Analytics idem: comparativo de colaboradores respeita janela, eixo X do comparativo segue a granularidade escolhida
 - **AC-3.8.14** `/api/v1/metrics/trends?granularity=day&date_from=2026-01-01&date_to=2026-01-31` retorna `{ months: [...] }` contendo 31 entradas, cada uma com campo `day` ou `month` (shape decidido pelo backend — ver §API contracts)
 - **AC-3.8.15** ≥ 8 novos testes pytest + ≥ 6 novos testes vitest cobrindo o comportamento novo, zero regressão
@@ -137,6 +137,23 @@ Nenhuma mudança no response schema.
 - Correção dos 21 testes SQLite pré-existentes (Phase 3.5 debt)
 - Mudança de nome do campo `months` → `buckets` na response de trends (breaking change, adiar)
 - Mudança de visual do DateRangePicker além do minimum-fix — o componente de base react-day-picker fica
+
+---
+
+## Decisão C6 — Threshold de granularidade diária (60 dias)
+
+**Fixado em:** 2026-04-14 (pós reviewer hostil, veredito DRY).
+
+O helper `frontend/src/lib/period.ts::pickGranularity` usa **60 dias** como corte entre diário e mensal, não "3 meses". Rationale:
+
+1. **Legibilidade do KPI chart principal:** 90 colunas diárias em um chart de KPI polui visualmente e torna o scan tendência-mês-a-mês impraticável. Um chart de 60 dias ainda é denso mas legível.
+2. **Simetria com o backend:** o backend aceita `granularity` explícito via query param; o frontend só decide quando o usuário não especifica. Um threshold temporal estrito (60d) é mais previsível que uma regra per-preset.
+3. **Presets cobrem os dois extremos:** "Últimos 30 dias" e "Últimos 2 meses" caem em daily; "Últimos 3/6/12 meses" caem em monthly. Ranges custom ≤60 dias escolhem daily automaticamente.
+4. **Contradição original da SPEC:** o rascunho inicial deste documento dava "Últimos 3 meses → diário" como exemplo do AC-3.8.10 mas também definia "≤60 dias" no §C6. Contradição interna resolvida em favor do threshold técnico (60d).
+
+**Usuário pode forçar diário via range custom**: arrastar o DateRangePicker até um range ≤60d habilita daily. Para ranges > 60d, diário não é oferecido pelo frontend por default — override explícito via query param `granularity=day` na URL permanece possível e documentado no API contract 3.8.A.
+
+**Dead branch em `pickGranularity`** (`months <= 2 → 'day'`): mantido como guarda defensiva para callers futuros que usem o helper com `months` legacy. Não é dead code semanticamente — é dead code apenas no grafo de chamadas atual (Dashboard+Analytics sempre passam `dateFrom/dateTo`). Remoção adiada para follow-up.
 
 ---
 
