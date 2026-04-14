@@ -657,3 +657,198 @@ class TestCollaboratorMentionsWithData:
         assert resp.status_code == 200
         mock_fn.assert_awaited_once()
         assert mock_fn.call_args.kwargs["include_inactive"] is True
+
+
+# ===========================================================================
+# 4. Phase 3.7 — compare_previous, rating_distribution, reply_rate_pct
+# ===========================================================================
+
+
+class TestOverviewComparePrevious:
+    """``compare_previous=True`` returns a previous-period aggregation."""
+
+    async def test_overview_compare_previous_returns_correct_window(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Window math: previous = [dt_from - duration, dt_from)."""
+        # Primary window: 2026-04-01 .. 2026-06-30 (≈ 90 days).
+        # Expected previous window: 2026-01-01 .. 2026-04-01.
+        await _insert_review(
+            db_session, "prev-1", rating=4, create_time="2026-02-10T10:00:00+00:00"
+        )
+        await _insert_review(
+            db_session, "prev-2", rating=2, create_time="2026-03-20T10:00:00+00:00"
+        )
+        await _insert_review(
+            db_session, "cur-1", rating=5, create_time="2026-04-15T10:00:00+00:00"
+        )
+        await _insert_review(
+            db_session, "cur-2", rating=5, create_time="2026-05-10T10:00:00+00:00"
+        )
+        await _insert_review(
+            db_session, "cur-3", rating=3, create_time="2026-06-01T10:00:00+00:00"
+        )
+        await db_session.commit()
+
+        resp = await client.get(
+            "/api/v1/metrics/overview"
+            "?date_from=2026-04-01&date_to=2026-06-30&compare_previous=true"
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["previous_period"] is not None
+        prev = body["previous_period"]
+        # Duration = 90 days; previous_from = 2026-04-01 - 90d = 2026-01-01
+        assert prev["period_start"].startswith("2026-01-01")
+        assert prev["period_end"].startswith("2026-04-01")
+        # Only prev-1 and prev-2 fall inside the previous window
+        assert prev["total_reviews"] == 2
+
+    async def test_overview_compare_previous_none_when_missing_dates(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Without both date_from and date_to, previous_period is None."""
+        await _insert_review(db_session, "any-1", rating=5)
+        await db_session.commit()
+
+        resp = await client.get(
+            "/api/v1/metrics/overview?compare_previous=true"
+        )
+        assert resp.status_code == 200
+        assert resp.json()["previous_period"] is None
+
+    async def test_overview_compare_previous_delta_is_deterministic(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """The delta (current - previous) is computable and stable."""
+        # 1 review in previous window, 3 in current window.
+        # Primary: 2026-04-01..2026-04-30 (29d). Previous: 2026-03-03..2026-04-01.
+        await _insert_review(
+            db_session, "prev-a", rating=5, create_time="2026-03-15T10:00:00+00:00"
+        )
+        for i, day in enumerate(("04-05", "04-15", "04-25")):
+            await _insert_review(
+                db_session,
+                f"cur-{i}",
+                rating=5,
+                create_time=f"2026-{day}T10:00:00+00:00",
+            )
+        await db_session.commit()
+
+        resp = await client.get(
+            "/api/v1/metrics/overview"
+            "?date_from=2026-04-01&date_to=2026-04-30&compare_previous=true"
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total_reviews"] == 3
+        assert body["previous_period"]["total_reviews"] == 1
+        delta = body["total_reviews"] - body["previous_period"]["total_reviews"]
+        assert delta == 2
+
+
+class TestRatingDistribution:
+    """``rating_distribution`` dict sums to total, all keys always present."""
+
+    async def test_rating_distribution_sums_to_total(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        await _insert_review(db_session, "r1", rating=5)
+        await _insert_review(db_session, "r2", rating=5)
+        await _insert_review(db_session, "r3", rating=4)
+        await _insert_review(db_session, "r4", rating=3)
+        await _insert_review(db_session, "r5", rating=1)
+        await db_session.commit()
+
+        resp = await client.get("/api/v1/metrics/overview")
+        assert resp.status_code == 200
+        body = resp.json()
+        dist = body["rating_distribution"]
+        assert set(dist.keys()) == {"1", "2", "3", "4", "5"}
+        assert sum(dist.values()) == body["total_reviews"] == 5
+        assert dist["5"] == 2
+        assert dist["4"] == 1
+        assert dist["3"] == 1
+        assert dist["2"] == 0
+        assert dist["1"] == 1
+
+    async def test_rating_distribution_empty_has_all_zero_keys(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.get("/api/v1/metrics/overview")
+        assert resp.status_code == 200
+        dist = resp.json()["rating_distribution"]
+        assert dist == {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+
+
+class TestReplyRatePct:
+    """``reply_rate_pct`` bounds and zero-reply scenarios."""
+
+    async def test_reply_rate_pct_between_zero_and_hundred(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        await _insert_review(db_session, "rr-1", rating=5, reply_text="Thanks!")
+        await _insert_review(db_session, "rr-2", rating=4, reply_text="Obrigado")
+        await _insert_review(db_session, "rr-3", rating=3)
+        await _insert_review(db_session, "rr-4", rating=2)
+        await db_session.commit()
+
+        resp = await client.get("/api/v1/metrics/overview")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert 0.0 <= body["reply_rate_pct"] <= 100.0
+        # 2 of 4 replied = 50.0
+        assert body["reply_rate_pct"] == 50.0
+
+    async def test_reply_rate_pct_zero_when_no_replies(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        await _insert_review(db_session, "nr-1", rating=5)
+        await _insert_review(db_session, "nr-2", rating=3)
+        await db_session.commit()
+
+        resp = await client.get("/api/v1/metrics/overview")
+        assert resp.status_code == 200
+        assert resp.json()["reply_rate_pct"] == 0.0
+
+
+# ===========================================================================
+# 5. Phase 3.7 — /api/v1/metrics/data-status
+# ===========================================================================
+
+
+class TestDataStatus:
+    """GET /api/v1/metrics/data-status freshness endpoint."""
+
+    async def test_data_status_returns_all_fields(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.get("/api/v1/metrics/data-status")
+        assert resp.status_code == 200
+        body = resp.json()
+        # All four documented fields are present (even if null)
+        assert "last_review_date" in body
+        assert "last_collection_run" in body
+        assert "total_reviews" in body
+        assert "days_since_last_review" in body
+        assert body["total_reviews"] == 0
+
+    async def test_data_status_days_since_last_review_nonnegative(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """With a review in the past, days_since_last_review is >= 0."""
+        await _insert_review(
+            db_session,
+            "old-1",
+            rating=4,
+            create_time="2025-12-01T10:00:00+00:00",
+        )
+        await db_session.commit()
+
+        resp = await client.get("/api/v1/metrics/data-status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["last_review_date"] is not None
+        assert body["total_reviews"] == 1
+        assert body["days_since_last_review"] is not None
+        assert body["days_since_last_review"] >= 0

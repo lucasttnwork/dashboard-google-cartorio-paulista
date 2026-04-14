@@ -567,3 +567,129 @@ class TestGetReviewDetail:
         resp = await client.get("/api/v1/reviews/nonexistent-id")
         assert resp.status_code == 404
         assert resp.json()["detail"] == "not_found"
+
+
+# ===========================================================================
+# Phase 3.7 — filter by collaborator_id
+# ===========================================================================
+
+
+class TestListReviewsFilterCollaborator:
+    """GET /api/v1/reviews/?collaborator_id=<id> (multi-value)."""
+
+    async def test_list_reviews_filter_by_collaborator_id(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Only reviews mentioning the supplied collaborator are returned."""
+        # rev-a → Maria, rev-b → Carlos, rev-c → no mention
+        await _insert_review(
+            db_session, "rev-a", rating=5,
+            create_time="2026-03-10T10:00:00+00:00",
+        )
+        await _insert_review(
+            db_session, "rev-b", rating=4,
+            create_time="2026-03-11T10:00:00+00:00",
+        )
+        await _insert_review(
+            db_session, "rev-c", rating=3,
+            create_time="2026-03-12T10:00:00+00:00",
+        )
+        await _insert_collaborator(db_session, 1, "Maria Silva")
+        await _insert_collaborator(db_session, 2, "Carlos Souza")
+        await _insert_mention(db_session, "rev-a", 1)
+        await _insert_mention(db_session, "rev-b", 2)
+        await db_session.commit()
+
+        # Filter by Maria (id=1)
+        resp = await client.get("/api/v1/reviews/?collaborator_id=1")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert len(body["items"]) == 1
+        item = body["items"][0]
+        assert item["review_id"] == "rev-a"
+        assert "Maria Silva" in item["collaborator_names"]
+
+        # Filter by multiple ids (1 and 2) — returns both mentioned reviews
+        resp2 = await client.get(
+            "/api/v1/reviews/?collaborator_id=1&collaborator_id=2"
+        )
+        assert resp2.status_code == 200
+        body2 = resp2.json()
+        assert body2["total"] == 2
+        returned_ids = {it["review_id"] for it in body2["items"]}
+        assert returned_ids == {"rev-a", "rev-b"}
+        # Every returned review mentions at least one of the requested collaborators
+        allowed_names = {"Maria Silva", "Carlos Souza"}
+        for it in body2["items"]:
+            assert allowed_names.intersection(it["collaborator_names"])
+
+    async def test_list_reviews_filter_by_unknown_collaborator_empty(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Unknown collaborator_id yields an empty result (no 500)."""
+        await _insert_review(db_session, "rev-x", rating=5)
+        await db_session.commit()
+
+        resp = await client.get("/api/v1/reviews/?collaborator_id=99999999")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 0
+        assert body["items"] == []
+        assert body["has_more"] is False
+
+
+# ===========================================================================
+# Phase 3.7 — filter by sentiment
+# ===========================================================================
+
+
+class TestListReviewsFilterSentiment:
+    """GET /api/v1/reviews/?sentiment={pos|neu|neg|unknown}."""
+
+    async def test_list_reviews_filter_sentiment_pos(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """All rows returned carry sentiment=='pos'."""
+        await _insert_review(db_session, "rev-pos-1", rating=5)
+        await _insert_review(db_session, "rev-pos-2", rating=5)
+        await _insert_review(db_session, "rev-neg-1", rating=1)
+        await _insert_review(db_session, "rev-unlabeled", rating=3)
+        await _insert_label(db_session, "rev-pos-1", sentiment="pos")
+        await _insert_label(db_session, "rev-pos-2", sentiment="pos")
+        await _insert_label(db_session, "rev-neg-1", sentiment="neg")
+        await db_session.commit()
+
+        resp = await client.get("/api/v1/reviews/?sentiment=pos")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 2
+        returned = {it["review_id"] for it in body["items"]}
+        assert returned == {"rev-pos-1", "rev-pos-2"}
+        for it in body["items"]:
+            assert it["sentiment"] == "pos"
+
+    async def test_list_reviews_filter_sentiment_unknown_includes_null(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """``sentiment=unknown`` matches both NULL labels and label=='unknown'."""
+        # rev-null has no label row at all
+        await _insert_review(db_session, "rev-null", rating=4)
+        # rev-explicit is explicitly labelled "unknown"
+        await _insert_review(db_session, "rev-explicit", rating=5)
+        await _insert_label(db_session, "rev-explicit", sentiment="unknown")
+        # rev-pos should NOT match
+        await _insert_review(db_session, "rev-pos", rating=5)
+        await _insert_label(db_session, "rev-pos", sentiment="pos")
+        await db_session.commit()
+
+        resp = await client.get("/api/v1/reviews/?sentiment=unknown")
+        assert resp.status_code == 200
+        body = resp.json()
+        returned = {it["review_id"] for it in body["items"]}
+        assert "rev-null" in returned
+        assert "rev-explicit" in returned
+        assert "rev-pos" not in returned
+        # Every returned item must have label=None or sentiment=="unknown"
+        for it in body["items"]:
+            assert it["sentiment"] in (None, "unknown")
