@@ -9,6 +9,8 @@ export function useReviews(params: {
   has_reply?: boolean
   sort_by?: string
   sort_order?: 'asc' | 'desc'
+  collaborator_id?: number[]
+  sentiment?: string
 }) {
   return useInfiniteQuery({
     queryKey: ['reviews', params],

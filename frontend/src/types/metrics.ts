@@ -1,3 +1,17 @@
+export type RatingBucket = '1' | '2' | '3' | '4' | '5'
+export type RatingDistribution = Record<RatingBucket, number>
+
+export interface PreviousPeriod {
+  total_reviews: number
+  avg_rating: number
+  five_star_pct: number
+  one_star_pct: number
+  reply_rate_pct: number
+  total_mentions: number
+  period_start: string
+  period_end: string
+}
+
 export interface MetricsOverview {
   total_reviews: number
   avg_rating: number
@@ -5,12 +19,15 @@ export interface MetricsOverview {
   one_star_pct: number
   total_with_comment: number
   total_with_reply: number
+  reply_rate_pct: number
   total_enotariado: number
   avg_rating_enotariado: number | null
   total_collaborators_active: number
   total_mentions: number
+  rating_distribution: RatingDistribution
   period_start: string
   period_end: string
+  previous_period: PreviousPeriod | null
 }
 
 export interface MonthData {
@@ -19,6 +36,14 @@ export interface MonthData {
   avg_rating: number
   reviews_enotariado: number
   avg_rating_enotariado: number | null
+  reply_rate_pct: number
+}
+
+export interface DataStatus {
+  last_review_date: string | null
+  last_collection_run: string | null
+  total_reviews: number
+  days_since_last_review: number | null
 }
 
 export interface TrendsData {

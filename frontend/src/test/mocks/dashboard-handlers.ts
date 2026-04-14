@@ -15,12 +15,15 @@ export const mockMetricsOverview: MetricsOverview = {
   one_star_pct: 1.7,
   total_with_comment: 210,
   total_with_reply: 180,
+  reply_rate_pct: 51.87,
   total_enotariado: 95,
   avg_rating_enotariado: 4.85,
   total_collaborators_active: 8,
   total_mentions: 124,
+  rating_distribution: { '1': 6, '2': 4, '3': 12, '4': 39, '5': 286 },
   period_start: '2025-04-01',
   period_end: '2026-04-01',
+  previous_period: null,
 }
 
 export const mockTrendsData: TrendsData = {
@@ -31,6 +34,7 @@ export const mockTrendsData: TrendsData = {
       avg_rating: 4.65,
       reviews_enotariado: 8,
       avg_rating_enotariado: 4.9,
+      reply_rate_pct: 50,
     },
     {
       month: '2026-02-01',
@@ -38,6 +42,7 @@ export const mockTrendsData: TrendsData = {
       avg_rating: 4.7,
       reviews_enotariado: 10,
       avg_rating_enotariado: 4.85,
+      reply_rate_pct: 52,
     },
     {
       month: '2026-03-01',
@@ -45,6 +50,7 @@ export const mockTrendsData: TrendsData = {
       avg_rating: 4.78,
       reviews_enotariado: 12,
       avg_rating_enotariado: 4.92,
+      reply_rate_pct: 55,
     },
   ],
 }
