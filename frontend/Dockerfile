@@ -20,7 +20,12 @@ RUN npm run build
 # ─── Stage 2: serve ───────────────────────────────────────
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# BACKEND_URL is resolved by envsubst at container startup.
+# Docker Compose: http://backend:8000
+# Railway:        http://backend.railway.internal:8000
+ENV BACKEND_URL=http://backend:8000
 
 EXPOSE 80
 
@@ -30,4 +35,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --spider -q http://127.0.0.1/ || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+# nginx:alpine's entrypoint auto-runs envsubst on /etc/nginx/templates/*.template
+# and outputs to /etc/nginx/conf.d/. No custom entrypoint needed.
