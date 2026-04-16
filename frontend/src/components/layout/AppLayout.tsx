@@ -6,6 +6,7 @@ import {
   BarChart3,
   UserCircle,
   Users,
+  FileUp,
   LogOut,
   Menu,
   X,
@@ -26,6 +27,7 @@ const navItems = [
 
 const adminItems = [
   { to: '/admin/collaborators', label: 'Colaboradores', icon: Users },
+  { to: '/admin/dataset-upload', label: 'Importar Dados', icon: FileUp, roles: ['admin'] as string[] },
 ] as const
 
 const roleLabels: Record<string, string> = {
@@ -106,9 +108,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Administração
             </p>
-            {adminItems.map((item) => (
-              <NavItem key={item.to} {...item} onClick={onNavigate} />
-            ))}
+            {adminItems
+              .filter((item) => !('roles' in item) || (item.roles as string[]).includes(user?.role ?? ''))
+              .map((item) => (
+                <NavItem key={item.to} {...item} onClick={onNavigate} />
+              ))}
           </>
         )}
       </nav>
