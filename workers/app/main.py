@@ -2,40 +2,54 @@ from __future__ import annotations
 
 import asyncio
 
+import asyncpg
+import httpx
+import structlog
+from apify_client import ApifyClientAsync
 from arq.connections import RedisSettings
 from arq.worker import create_worker
 
 from app import health_server
+from app.cron import cron_jobs
 from app.settings import settings
+from app.tasks.collect_reviews import collect_reviews
 from app.tasks.example import example_task
+from app.tasks.analyze_review import analyze_review
 from app.tasks.reprocess_mentions import reprocess_collaborator_mentions
+
+logger = structlog.get_logger(__name__)
+
+
+async def on_startup(ctx: dict) -> None:
+    dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+    ctx["db_pool"] = await asyncpg.create_pool(dsn) if dsn else None
+    ctx["http_client"] = httpx.AsyncClient(timeout=60)
+    ctx["apify_client"] = ApifyClientAsync(token=settings.apify_token) if settings.apify_token else None
+    logger.info("worker.startup", db_pool=ctx["db_pool"] is not None, apify=ctx["apify_client"] is not None)
+
+
+async def on_shutdown(ctx: dict) -> None:
+    if pool := ctx.get("db_pool"):
+        await pool.close()
+    if client := ctx.get("http_client"):
+        await client.aclose()
+    if apify := ctx.get("apify_client"):
+        # ApifyClientAsync doesn't have a close method — it uses httpx internally
+        if hasattr(apify, "http_client") and apify.http_client:
+            await apify.http_client.aclose()
+    logger.info("worker.shutdown")
 
 
 class WorkerSettings:
-    """arq WorkerSettings — canonical entry point for the worker runtime.
-
-    Phase 4 will populate ``cron_jobs`` and wire real startup/shutdown
-    hooks (DB pool, httpx client, Sentry). For Phase -1 this is an
-    intentionally minimal scaffold that only exposes the example task.
-    """
-
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    functions = [example_task, reprocess_collaborator_mentions]
-    cron_jobs: list = []  # noqa: RUF012 — populated in Phase 4
-    on_startup = None
-    on_shutdown = None
+    functions = [example_task, reprocess_collaborator_mentions, collect_reviews, analyze_review]
+    cron_jobs = cron_jobs
+    on_startup = on_startup
+    on_shutdown = on_shutdown
     max_jobs = 10
 
 
 async def main() -> None:
-    """Run the health HTTP server and the arq worker concurrently.
-
-    Both coroutines live in the same event loop inside a single
-    container process. If either one exits, ``asyncio.gather`` will
-    propagate the exception and the container will restart under
-    Railway's restart policy.
-    """
-
     worker = create_worker(WorkerSettings)  # type: ignore[arg-type]
     await asyncio.gather(
         health_server.run(settings.health_port),

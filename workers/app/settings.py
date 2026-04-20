@@ -25,5 +25,14 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     health_port: int = 9000
 
+    # Phase 4: Collection & NLP
+    apify_token: str = ""
+    openrouter_api_key: str = ""
+    collection_enabled: bool = True
+    collection_window_hours: int = 3
+    nlp_confidence_threshold: float = 0.7
+    google_place_url: str = ""
+    location_id: str = "cartorio-paulista-location"
+
 
 settings = Settings()
