@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.tasks.collect_reviews import collect_reviews, _check_degraded
+from app.tasks.collect_reviews import collect_reviews, _check_degraded, _compute_window_hours
 
 
 @pytest.fixture
@@ -109,8 +109,9 @@ async def test_collect_happy_path_with_dedup(ctx):
 
     # Mock DB pool
     conn_mock = AsyncMock()
-    # 2 upsert fetchrows + 1 _record_run fetchrow
+    # window_computation + 2 upsert fetchrows + 1 _record_run fetchrow
     conn_mock.fetchrow = AsyncMock(side_effect=[
+        None,  # _compute_window_hours: no prior run → default
         {"is_new": True},
         {"is_new": False},
         {"id": 1},
@@ -145,3 +146,84 @@ class _async_ctx:
 
     async def __aexit__(self, *args):
         pass
+
+
+# --- Window computation tests (gap-coverage guarantee) ---
+
+from datetime import datetime, timedelta, timezone
+
+
+class _PoolCtx:
+    def __init__(self, conn):
+        self._conn = conn
+
+    async def __aenter__(self):
+        return self._conn
+
+    async def __aexit__(self, *a):
+        pass
+
+
+def _pool_with_last_run(hours_ago):
+    conn = AsyncMock()
+    completed_at = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    conn.fetchrow = AsyncMock(return_value={"completed_at": completed_at})
+    pool = MagicMock()
+    pool.acquire = MagicMock(return_value=_PoolCtx(conn))
+    return pool
+
+
+@pytest.mark.asyncio
+async def test_window_no_pool_returns_default():
+    assert await _compute_window_hours(None, 3) == 3
+
+
+@pytest.mark.asyncio
+async def test_window_no_prior_run_returns_default():
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=None)
+    pool = MagicMock()
+    pool.acquire = MagicMock(return_value=_PoolCtx(conn))
+    assert await _compute_window_hours(pool, 3) == 3
+
+
+@pytest.mark.asyncio
+async def test_window_weekday_2h_cadence():
+    # Last run 2h ago → window = 3h (2 + 1 overlap)
+    pool = _pool_with_last_run(2)
+    assert await _compute_window_hours(pool, 3) == 3
+
+
+@pytest.mark.asyncio
+async def test_window_saturday_first_run_of_weekend():
+    # Friday 22h → Saturday 8h = 10h gap → window = 11h covers fully
+    pool = _pool_with_last_run(10)
+    assert await _compute_window_hours(pool, 3) == 11
+
+
+@pytest.mark.asyncio
+async def test_window_sunday_after_saturday():
+    # Sat 8h → Sun 8h = 24h gap → window = 25h
+    pool = _pool_with_last_run(24)
+    assert await _compute_window_hours(pool, 3) == 25
+
+
+@pytest.mark.asyncio
+async def test_window_monday_after_sunday():
+    # Sun 8h → Mon 0h = 16h gap → window = 17h
+    pool = _pool_with_last_run(16)
+    assert await _compute_window_hours(pool, 3) == 17
+
+
+@pytest.mark.asyncio
+async def test_window_capped_at_7_days():
+    # Collection broken for 30 days — cap at 168h
+    pool = _pool_with_last_run(24 * 30)
+    assert await _compute_window_hours(pool, 3) == 168
+
+
+@pytest.mark.asyncio
+async def test_window_never_below_default():
+    # Last run 0.5h ago — still use default 3h floor
+    pool = _pool_with_last_run(0)
+    assert await _compute_window_hours(pool, 3) == 3

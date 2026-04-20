@@ -59,6 +59,28 @@ async def _record_run(pool, *, source: str, status: str, reviews_new: int = 0,
         return row["id"] if row else None
 
 
+async def _compute_window_hours(pool, default_hours: int) -> int:
+    """Compute fetch window: time since last successful run + 1h overlap.
+
+    Guarantees zero gaps across weekday/weekend cadence boundaries. If no
+    successful run exists, falls back to `default_hours` (initial bootstrap).
+    Capped at 168h (7 days) to avoid runaway backfill.
+    """
+    if not pool:
+        return default_hours
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT completed_at FROM collection_runs "
+            "WHERE status = 'completed' AND completed_at IS NOT NULL "
+            "ORDER BY completed_at DESC LIMIT 1"
+        )
+    if not row or not row["completed_at"]:
+        return default_hours
+    delta = datetime.now(timezone.utc) - row["completed_at"]
+    hours = int(delta.total_seconds() / 3600) + 1  # +1h overlap
+    return max(default_hours, min(hours, 168))
+
+
 async def collect_reviews(ctx: dict) -> dict:
     """Collect reviews from Apify and upsert into DB."""
     if not settings.collection_enabled:
@@ -77,13 +99,16 @@ async def collect_reviews(ctx: dict) -> dict:
         logger.error("collect.no_apify_client")
         return {"status": "error", "reason": "no_apify_client"}
 
+    window_hours = await _compute_window_hours(pool, settings.collection_window_hours)
+    logger.info("collect.window", hours=window_hours)
+
     run_input = {
         "startUrls": [{"url": settings.google_place_url}],
         "reviewsSort": "newest",
-        "reviewsStartDate": f"{settings.collection_window_hours} hours",
+        "reviewsStartDate": f"{window_hours} hours",
         "language": "pt-BR",
         "personalData": True,
-        "maxReviews": 200,
+        "maxReviews": 500,
     }
 
     actor_run = None
