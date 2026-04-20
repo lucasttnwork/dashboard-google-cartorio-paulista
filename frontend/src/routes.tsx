@@ -22,6 +22,9 @@ const CollaboratorProfilePage = lazy(
 )
 const CollaboratorsPage = lazy(() => import('./pages/admin/CollaboratorsPage'))
 const DatasetUploadPage = lazy(() => import('./pages/admin/DatasetUploadPage'))
+const CollectionHealthPage = lazy(
+  () => import('./pages/admin/CollectionHealthPage'),
+)
 
 function PageFallback() {
   return (
@@ -110,6 +113,16 @@ export const router = createBrowserRouter([
           <RequireRole allowed={['admin']}>
             <LazyPage>
               <DatasetUploadPage />
+            </LazyPage>
+          </RequireRole>
+        ),
+      },
+      {
+        path: '/admin/collection-health',
+        element: (
+          <RequireRole allowed={['admin']}>
+            <LazyPage>
+              <CollectionHealthPage />
             </LazyPage>
           </RequireRole>
         ),
