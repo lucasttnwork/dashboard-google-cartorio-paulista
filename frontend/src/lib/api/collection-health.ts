@@ -22,14 +22,14 @@ export interface CollectionHealthData {
 
 export async function fetchCollectionHealth(): Promise<CollectionHealthData> {
   const { data } = await apiClient.get<CollectionHealthData>(
-    '/api/v1/admin/collection-health',
+    '/api/v1/admin/collection-health/',
   )
   return data
 }
 
 export async function resetDegradedState(): Promise<{ ok: boolean }> {
   const { data } = await apiClient.post<{ ok: boolean }>(
-    '/api/v1/admin/collection-health/reset',
+    '/api/v1/admin/collection-health/reset/',
   )
   return data
 }

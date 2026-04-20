@@ -50,7 +50,7 @@ async def analyze_review(ctx: dict, *, review_id: str) -> dict:
 
     async with pool.acquire() as conn:
         review = await conn.fetchrow(
-            "SELECT id, review_id, comment FROM reviews WHERE review_id = $1",
+            "SELECT review_id, comment FROM reviews WHERE review_id = $1",
             review_id,
         )
 
@@ -144,10 +144,7 @@ async def analyze_review(ctx: dict, *, review_id: str) -> dict:
             await conn.execute(
                 """INSERT INTO review_collaborators
                    (review_id, collaborator_id, sentiment, confidence, excerpt, source)
-                   VALUES (
-                       (SELECT id FROM reviews WHERE review_id = $1),
-                       $2, $3, $4, $5, 'gemini'
-                   )
+                   VALUES ($1, $2, $3, $4, $5, 'gemini')
                    ON CONFLICT (review_id, collaborator_id) DO UPDATE SET
                        sentiment = EXCLUDED.sentiment,
                        confidence = EXCLUDED.confidence,

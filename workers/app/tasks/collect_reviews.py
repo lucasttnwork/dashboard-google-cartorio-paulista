@@ -102,7 +102,7 @@ async def collect_reviews(ctx: dict) -> dict:
             else:
                 logger.error("collect.actor_call_failed", error=str(exc))
                 await _record_run(
-                    pool, source="apify_auto", status="error",
+                    pool, source="scheduled", status="failed",
                     started_at=started_at,
                     completed_at=datetime.now(timezone.utc),
                     error_message=str(exc),
@@ -115,7 +115,7 @@ async def collect_reviews(ctx: dict) -> dict:
     run_status = actor_run.get("status")
     if run_status == "FAILED":
         await _record_run(
-            pool, source="apify_auto", status="error",
+            pool, source="scheduled", status="failed",
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
             error_message="actor_failed",
@@ -124,7 +124,7 @@ async def collect_reviews(ctx: dict) -> dict:
 
     if run_status == "TIMED-OUT":
         await _record_run(
-            pool, source="apify_auto", status="timeout",
+            pool, source="scheduled", status="failed",
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
             error_message="actor_timeout",
@@ -142,7 +142,7 @@ async def collect_reviews(ctx: dict) -> dict:
 
     if not items:
         await _record_run(
-            pool, source="apify_auto", status="completed",
+            pool, source="scheduled", status="completed",
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
         )
@@ -196,18 +196,16 @@ async def collect_reviews(ctx: dict) -> dict:
 
     completed_at = datetime.now(timezone.utc)
     await _record_run(
-        pool, source="apify_auto", status="completed",
+        pool, source="scheduled", status="completed",
         reviews_new=new_count, reviews_skipped=skipped_count,
         started_at=started_at, completed_at=completed_at,
     )
 
+    redis = ctx.get("redis")
     for review_id in new_review_ids:
         try:
-            job = ctx.get("enqueue")
-            if job:
-                await job("analyze_review", review_id=review_id)
-            elif hasattr(ctx, "enqueue_job"):
-                await ctx.enqueue_job("analyze_review", review_id=review_id)
+            if redis:
+                await redis.enqueue_job("analyze_review", review_id=review_id)
         except Exception as exc:
             logger.warning("collect.enqueue_nlp_failed", review_id=review_id, error=str(exc))
 
