@@ -81,7 +81,7 @@ async def collect_reviews(ctx: dict) -> dict:
         "startUrls": [{"url": settings.google_place_url}],
         "reviewsSort": "newest",
         "reviewsStartDate": f"{settings.collection_window_hours} hours",
-        "language": "pt",
+        "language": "pt-BR",
         "personalData": True,
         "maxReviews": 200,
     }
@@ -170,7 +170,7 @@ async def collect_reviews(ctx: dict) -> dict:
                         create_time, response_text, response_time,
                         last_seen_at, source, collection_source)
                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-                               $13::timestamptz,$14,$15::timestamptz,
+                               $13,$14,$15,
                                now(),$16,'auto')
                        ON CONFLICT (review_id) DO UPDATE SET
                            comment = EXCLUDED.comment,

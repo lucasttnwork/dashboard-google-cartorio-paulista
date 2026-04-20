@@ -40,9 +40,10 @@ def test_transform_all_fields():
     assert result["reviewer_photo_url"] == "https://photos.google.com/456.jpg"
     assert result["original_language"] == "pt"
     assert result["translated_text"] == "Excellent service!"
-    assert result["create_time"] == "2026-04-15T10:00:00Z"
+    from datetime import datetime, timezone
+    assert result["create_time"] == datetime(2026, 4, 15, 10, 0, tzinfo=timezone.utc)
     assert result["response_text"] == "Obrigado!"
-    assert result["response_time"] == "2026-04-16T08:00:00Z"
+    assert result["response_time"] == datetime(2026, 4, 16, 8, 0, tzinfo=timezone.utc)
     assert result["source"] == "apify"
     assert json.loads(result["raw_payload"]) == FULL_RAW
 
