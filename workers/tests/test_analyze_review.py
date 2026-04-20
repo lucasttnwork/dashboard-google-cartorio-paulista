@@ -28,8 +28,8 @@ def review_row():
 @pytest.fixture
 def collaborators_rows():
     return [
-        {"id": 10, "name": "João", "aliases": json.dumps(["Joãozinho"])},
-        {"id": 20, "name": "Maria", "aliases": None},
+        {"id": 10, "full_name": "João", "aliases": json.dumps(["Joãozinho"])},
+        {"id": 20, "full_name": "Maria", "aliases": None},
     ]
 
 

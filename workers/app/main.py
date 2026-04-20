@@ -22,7 +22,7 @@ logger = structlog.get_logger(__name__)
 
 async def on_startup(ctx: dict) -> None:
     dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-    ctx["db_pool"] = await asyncpg.create_pool(dsn) if dsn else None
+    ctx["db_pool"] = await asyncpg.create_pool(dsn, statement_cache_size=0) if dsn else None
     ctx["http_client"] = httpx.AsyncClient(timeout=60)
     ctx["apify_client"] = ApifyClientAsync(token=settings.apify_token) if settings.apify_token else None
     logger.info("worker.startup", db_pool=ctx["db_pool"] is not None, apify=ctx["apify_client"] is not None)

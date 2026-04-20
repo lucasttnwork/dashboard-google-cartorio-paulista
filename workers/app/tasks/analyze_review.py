@@ -60,9 +60,9 @@ async def analyze_review(ctx: dict, *, review_id: str) -> dict:
 
     async with pool.acquire() as conn:
         collaborators = await conn.fetch(
-            """SELECT c.id, c.name, c.aliases
+            """SELECT c.id, c.full_name, c.aliases
                FROM collaborators c
-               WHERE c.active = true"""
+               WHERE c.is_active = true"""
         )
 
     collab_list = []
@@ -73,7 +73,7 @@ async def analyze_review(ctx: dict, *, review_id: str) -> dict:
                 aliases = json.loads(aliases)
             except (json.JSONDecodeError, TypeError):
                 aliases = []
-        collab_list.append({"id": c["id"], "name": c["name"], "aliases": aliases})
+        collab_list.append({"id": c["id"], "name": c["full_name"], "aliases": aliases})
 
     prompt = NLP_PROMPT_TEMPLATE.format(
         collaborators_json=json.dumps(collab_list, ensure_ascii=False),
