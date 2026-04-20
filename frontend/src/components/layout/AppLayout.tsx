@@ -7,16 +7,19 @@ import {
   UserCircle,
   Users,
   FileUp,
+  Activity,
   LogOut,
   Menu,
   X,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/lib/auth/store'
 import { apiClient } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { DataFreshnessIndicator } from '@/components/layout/DataFreshnessIndicator'
+import { fetchCollectionHealth } from '@/lib/api/collection-health'
 
 const navItems = [
   { to: '/dashboard', label: 'Painel Geral', icon: LayoutDashboard },
@@ -28,6 +31,7 @@ const navItems = [
 const adminItems = [
   { to: '/admin/collaborators', label: 'Colaboradores', icon: Users },
   { to: '/admin/dataset-upload', label: 'Importar Dados', icon: FileUp, roles: ['admin'] as string[] },
+  { to: '/admin/collection-health', label: 'Saúde da Coleta', icon: Activity, roles: ['admin'] as string[] },
 ] as const
 
 const roleLabels: Record<string, string> = {
@@ -41,11 +45,13 @@ function NavItem({
   label,
   icon: Icon,
   onClick,
+  showBadge,
 }: {
   to: string
   label: string
   icon: React.ComponentType<{ className?: string }>
   onClick?: () => void
+  showBadge?: boolean
 }) {
   return (
     <NavLink
@@ -62,6 +68,9 @@ function NavItem({
     >
       <Icon className="size-5 shrink-0" />
       {label}
+      {showBadge && (
+        <span className="ml-auto size-2 rounded-full bg-destructive" />
+      )}
     </NavLink>
   )
 }
@@ -69,6 +78,14 @@ function NavItem({
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
+
+  const { data: healthData } = useQuery({
+    queryKey: ['collection-health'],
+    queryFn: fetchCollectionHealth,
+    staleTime: 60000,
+    enabled: user?.role === 'admin',
+  })
+  const showHealthBadge = (healthData?.consecutive_failures ?? 0) >= 3
 
   const handleLogout = useCallback(async () => {
     try {
@@ -111,7 +128,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             {adminItems
               .filter((item) => !('roles' in item) || (item.roles as string[]).includes(user?.role ?? ''))
               .map((item) => (
-                <NavItem key={item.to} {...item} onClick={onNavigate} />
+                <NavItem
+                  key={item.to}
+                  {...item}
+                  onClick={onNavigate}
+                  showBadge={item.to === '/admin/collection-health' && showHealthBadge}
+                />
               ))}
           </>
         )}
