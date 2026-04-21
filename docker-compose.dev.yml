@@ -18,6 +18,10 @@ services:
       - ./backend/.env.local
     environment:
       - REDIS_URL=redis://redis:6379/0
+    # Override Dockerfile CMD locally: bind IPv4 so Docker's port publish
+    # proxy can reach the container. Production (Railway) uses the `::`
+    # bind from the Dockerfile for private IPv6 networking.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     depends_on:
