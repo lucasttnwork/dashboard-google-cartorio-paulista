@@ -14,7 +14,7 @@ from app.cron import cron_jobs
 from app.settings import settings
 from app.tasks.collect_reviews import collect_reviews
 from app.tasks.example import example_task
-from app.tasks.analyze_review import analyze_review
+from app.tasks.analyze_review import analyze_review, analyze_reviews_batch
 from app.tasks.reprocess_mentions import reprocess_collaborator_mentions
 
 logger = structlog.get_logger(__name__)
@@ -42,7 +42,13 @@ async def on_shutdown(ctx: dict) -> None:
 
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    functions = [example_task, reprocess_collaborator_mentions, collect_reviews, analyze_review]
+    functions = [
+        example_task,
+        reprocess_collaborator_mentions,
+        collect_reviews,
+        analyze_review,
+        analyze_reviews_batch,
+    ]
     cron_jobs = cron_jobs
     on_startup = on_startup
     on_shutdown = on_shutdown

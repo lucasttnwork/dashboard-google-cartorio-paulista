@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     collection_enabled: bool = True
     collection_window_hours: int = 3
     nlp_confidence_threshold: float = 0.7
+    nlp_batch_size: int = 10
     google_place_url: str = ""
     location_id: str = "cartorio-paulista-location"
 

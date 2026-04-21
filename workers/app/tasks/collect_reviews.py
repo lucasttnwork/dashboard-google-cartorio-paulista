@@ -227,12 +227,18 @@ async def collect_reviews(ctx: dict) -> dict:
     )
 
     redis = ctx.get("redis")
-    for review_id in new_review_ids:
-        try:
-            if redis:
-                await redis.enqueue_job("analyze_review", review_id=review_id)
-        except Exception as exc:
-            logger.warning("collect.enqueue_nlp_failed", review_id=review_id, error=str(exc))
+    if redis and new_review_ids:
+        batch_size = max(1, settings.nlp_batch_size)
+        for start in range(0, len(new_review_ids), batch_size):
+            batch = new_review_ids[start:start + batch_size]
+            try:
+                await redis.enqueue_job("analyze_reviews_batch", review_ids=batch)
+            except Exception as exc:
+                logger.warning(
+                    "collect.enqueue_nlp_failed",
+                    batch_size=len(batch),
+                    error=str(exc),
+                )
 
     logger.info(
         "collect.completed",
