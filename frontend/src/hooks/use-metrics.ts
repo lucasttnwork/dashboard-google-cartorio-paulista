@@ -100,15 +100,17 @@ export function useCollaboratorProfile(id: number | null) {
 }
 
 /**
- * Data freshness indicator. Polled rarely — the last-review timestamp
- * only moves when the collection worker runs (hourly in prod).
+ * Data freshness indicator. The collection worker runs every 2 hours on
+ * weekdays, so the last-review timestamp may change while the tab is open.
+ * Refetch on focus so returning to the tab reflects fresh state.
  */
 export function useDataStatus() {
   return useQuery({
     queryKey: ['data-status'],
     queryFn: fetchDataStatus,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
     retry: 2,
   })
 }

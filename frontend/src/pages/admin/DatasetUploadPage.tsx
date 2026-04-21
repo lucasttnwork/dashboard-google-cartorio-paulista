@@ -9,6 +9,7 @@ import {
   History,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -55,7 +56,7 @@ function formatSize(bytes: number): string {
 
 function StatusBadge({ status }: { status: string }) {
   const variant = status === 'completed' ? 'default' : status === 'failed' ? 'destructive' : 'secondary'
-  const label = status === 'completed' ? 'Concluido' : status === 'failed' ? 'Falhou' : 'Em andamento'
+  const label = status === 'completed' ? 'Concluído' : status === 'failed' ? 'Falhou' : 'Em andamento'
   return <Badge variant={variant === 'default' ? 'secondary' : 'destructive'}
     className={status === 'completed' ? 'bg-green-100 text-green-800 hover:bg-green-100' : undefined}
   >{label}</Badge>
@@ -70,6 +71,7 @@ export default function DatasetUploadPage() {
   const [runs, setRuns] = useState<CollectionRun[]>([])
   const [loadingRuns, setLoadingRuns] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
+  const queryClient = useQueryClient()
 
   const loadRuns = useCallback(async () => {
     try {
@@ -91,7 +93,7 @@ export default function DatasetUploadPage() {
       const file = e.target.files?.[0]
       if (!file) return
       if (!file.name.endsWith('.json')) {
-        toast.error('Formato invalido. Selecione um arquivo .json')
+        toast.error('Formato inválido. Selecione um arquivo .json')
         return
       }
       setSelectedFile(file)
@@ -114,9 +116,10 @@ export default function DatasetUploadPage() {
       setResult(data)
       setStatus('success')
       toast.success(
-        `Importacao concluida: ${data.new_reviews} novos, ${data.updated_reviews} atualizados`,
+        `Importação concluída: ${data.new_reviews} novos, ${data.updated_reviews} atualizados`,
       )
       loadRuns()
+      queryClient.invalidateQueries({ queryKey: ['data-status'] })
     } catch (err: unknown) {
       setStatus('error')
       let msg = 'Erro desconhecido'
@@ -128,22 +131,22 @@ export default function DatasetUploadPage() {
       }
       const friendlyMessages: Record<string, string> = {
         file_must_be_json: 'O arquivo precisa ser do tipo JSON.',
-        file_too_large: 'O arquivo excede o tamanho maximo permitido (100 MB).',
-        invalid_json: 'O conteudo do arquivo nao e um JSON valido.',
-        empty_dataset: 'O arquivo esta vazio (nenhuma avaliacao encontrada).',
-        json_must_be_array: 'O arquivo deve conter uma lista de avaliacoes (array JSON).',
+        file_too_large: 'O arquivo excede o tamanho máximo permitido (100 MB).',
+        invalid_json: 'O conteúdo do arquivo não é um JSON válido.',
+        empty_dataset: 'O arquivo está vazio (nenhuma avaliação encontrada).',
+        json_must_be_array: 'O arquivo deve conter uma lista de avaliações (array JSON).',
       }
       setError(friendlyMessages[msg] ?? msg)
-      toast.error('Falha na importacao do dataset')
+      toast.error('Falha na importação do dataset')
     }
-  }, [selectedFile, loadRuns])
+  }, [selectedFile, loadRuns, queryClient])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
     if (!file) return
     if (!file.name.endsWith('.json')) {
-      toast.error('Formato invalido. Selecione um arquivo .json')
+      toast.error('Formato inválido. Selecione um arquivo .json')
       return
     }
     setSelectedFile(file)
@@ -160,11 +163,11 @@ export default function DatasetUploadPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
-          Importar Dados de Avaliacoes
+          Importar Dados de Avaliações
         </h1>
         <p className="text-sm text-muted-foreground">
           Envie arquivos JSON exportados do Google Maps Reviews Scraper (Apify)
-          para atualizar a base de avaliacoes. Dados duplicados sao tratados
+          para atualizar a base de avaliações. Dados duplicados são tratados
           automaticamente.
         </p>
       </div>
@@ -174,9 +177,9 @@ export default function DatasetUploadPage() {
         <CardHeader>
           <CardTitle>Enviar Arquivo</CardTitle>
           <CardDescription>
-            Arraste ou selecione o arquivo JSON do dataset. Avaliacoes que ja
-            existem no banco serao atualizadas; novas avaliacoes serao
-            adicionadas. Nenhum dado e duplicado.
+            Arraste ou selecione o arquivo JSON do dataset. Avaliações que já
+            existem no banco serão atualizadas; novas avaliações serão
+            adicionadas. Nenhum dado é duplicado.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -229,7 +232,7 @@ export default function DatasetUploadPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
-                Processando avaliacoes... Isso pode levar alguns segundos.
+                Processando avaliações... Isso pode levar alguns segundos.
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <div
@@ -253,7 +256,7 @@ export default function DatasetUploadPage() {
             ) : (
               <>
                 <Upload className="mr-2 size-4" />
-                Importar Avaliacoes
+                Importar Avaliações
               </>
             )}
           </Button>
@@ -264,14 +267,14 @@ export default function DatasetUploadPage() {
       {status === 'success' && result && (
         <Alert>
           <CheckCircle2 className="size-4 text-green-600" />
-          <AlertTitle>Importacao concluida</AlertTitle>
+          <AlertTitle>Importação concluída</AlertTitle>
           <AlertDescription>
             <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
               <span className="text-muted-foreground">Total processado:</span>
               <span className="font-medium">
-                {result.total_processed.toLocaleString('pt-BR')} avaliacoes
+                {result.total_processed.toLocaleString('pt-BR')} avaliações
               </span>
-              <span className="text-muted-foreground">Novas avaliacoes:</span>
+              <span className="text-muted-foreground">Novas avaliações:</span>
               <span className="font-medium text-green-700">
                 {result.new_reviews.toLocaleString('pt-BR')}
               </span>
@@ -292,7 +295,7 @@ export default function DatasetUploadPage() {
       {status === 'error' && error && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
-          <AlertTitle>Erro na importacao</AlertTitle>
+          <AlertTitle>Erro na importação</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -302,22 +305,22 @@ export default function DatasetUploadPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="size-5" />
-            Historico de Importacoes
+            Histórico de Importações
           </CardTitle>
           <CardDescription>
-            Registro de todas as importacoes manuais realizadas.
+            Registro de todas as importações manuais realizadas.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loadingRuns ? (
             <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
               <Loader2 className="mr-2 size-4 animate-spin" />
-              Carregando historico...
+              Carregando histórico...
             </div>
           ) : runs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
               <Clock className="size-8" />
-              <p>Nenhuma importacao realizada ainda.</p>
+              <p>Nenhuma importação realizada ainda.</p>
             </div>
           ) : (
             <Table>
