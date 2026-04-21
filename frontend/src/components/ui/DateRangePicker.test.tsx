@@ -16,32 +16,34 @@ if (typeof window.PointerEvent === 'undefined') {
 }
 
 /**
- * Controlled wrapper so the test can drive the picker exactly like a real
- * consumer would (AnalyticsPage / DashboardPage). React-day-picker fires
- * `onSelect` on every click, so the picker's internal `pendingClicks`
- * counter must observe the external `value` update propagating back.
+ * Controlled wrapper exercising the commit-only API. The picker never
+ * streams intermediate selections — only Aplicar triggers `onApply`.
  */
-function ControlledPicker() {
+function ControlledPicker({
+  onApply,
+}: {
+  onApply?: (range: DateRangeValue) => void
+}) {
   const [value, setValue] = useState<DateRangeValue>({ from: null, to: null })
-  return <DateRangePicker value={value} onChange={setValue} />
+  return (
+    <DateRangePicker
+      value={value}
+      onApply={(range) => {
+        setValue(range)
+        onApply?.(range)
+      }}
+    />
+  )
 }
 
-/**
- * SI-2 regression — the popover must stay open after the first click and
- * auto-close once the user has committed two intentional clicks AND the
- * range has both endpoints. F4 in Phase 3.8 introduced the counter; this
- * test guards that counter against future regressions.
- */
-describe('DateRangePicker (SI-2 auto-close regression)', () => {
-  it('closes automatically after two clicks selecting a complete range', async () => {
+describe('DateRangePicker (deferred-apply commit model)', () => {
+  it('does not fire onApply on intermediate clicks — only when Aplicar is pressed', async () => {
     const user = userEvent.setup()
-    render(<ControlledPicker />)
+    const applySpy = vi.fn()
+    render(<ControlledPicker onApply={applySpy} />)
 
-    // Open the popover
     await user.click(screen.getByRole('button', { name: 'Selecionar período' }))
 
-    // Calendar mounts inside a portal — wait for a known day cell to appear.
-    // Picking days by their aria-label keeps us resilient to row layout.
     const firstDay = await waitFor(() => {
       const el = document.querySelector<HTMLButtonElement>(
         'button[aria-label*="1 de"]',
@@ -51,8 +53,6 @@ describe('DateRangePicker (SI-2 auto-close regression)', () => {
     })
     await user.click(firstDay)
 
-    // After one click the popover must still be open — the internal counter
-    // guarantees this. We verify by locating a second day cell.
     const secondDay = await waitFor(() => {
       const el = document.querySelector<HTMLButtonElement>(
         'button[aria-label*="15 de"]',
@@ -60,16 +60,58 @@ describe('DateRangePicker (SI-2 auto-close regression)', () => {
       if (!el) throw new Error('Second day button not yet rendered')
       return el
     })
-    expect(secondDay).toBeInTheDocument()
-
     await user.click(secondDay)
 
-    // After the second click the popover must auto-close. react-day-picker
-    // removes itself from the DOM when base-ui unmounts the portal.
+    // Intermediate calendar clicks MUST NOT commit a new range — the parent
+    // (Dashboard / Analytics) depends on this to avoid refetching per click.
+    expect(applySpy).not.toHaveBeenCalled()
+
+    const applyBtn = screen.getByRole('button', { name: 'Aplicar' })
+    expect(applyBtn).not.toBeDisabled()
+    await user.click(applyBtn)
+
+    await waitFor(() => {
+      expect(applySpy).toHaveBeenCalledTimes(1)
+    })
+    const firstCall = applySpy.mock.calls[0]
+    expect(firstCall).toBeDefined()
+    const call = firstCall![0] as DateRangeValue
+    expect(call.from).toBeInstanceOf(Date)
+    expect(call.to).toBeInstanceOf(Date)
+
+    // Popover closes on Apply.
     await waitFor(() => {
       expect(
         document.querySelector('button[aria-label*="1 de"]'),
       ).toBeNull()
     })
+  })
+
+  it('Cancel discards the draft and does not fire onApply', async () => {
+    const user = userEvent.setup()
+    const applySpy = vi.fn()
+    render(<ControlledPicker onApply={applySpy} />)
+
+    await user.click(screen.getByRole('button', { name: 'Selecionar período' }))
+    const firstDay = await waitFor(() => {
+      const el = document.querySelector<HTMLButtonElement>(
+        'button[aria-label*="1 de"]',
+      )
+      if (!el) throw new Error('First day button not yet rendered')
+      return el
+    })
+    await user.click(firstDay)
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(applySpy).not.toHaveBeenCalled()
+  })
+
+  it('disables Aplicar while the calendar has no selection', async () => {
+    const user = userEvent.setup()
+    render(<ControlledPicker />)
+
+    await user.click(screen.getByRole('button', { name: 'Selecionar período' }))
+    const applyBtn = await screen.findByRole('button', { name: 'Aplicar' })
+    expect(applyBtn).toBeDisabled()
   })
 })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { CalendarDays } from 'lucide-react'
 import { format } from 'date-fns'
@@ -15,10 +15,22 @@ export interface DateRangeValue {
 
 export interface DateRangePickerProps {
   value: DateRangeValue
-  onChange: (range: DateRangeValue) => void
+  /**
+   * Commit-only callback — fires exclusively when the user clicks Aplicar
+   * with both endpoints chosen. No streaming updates, so parents can wire
+   * `value` directly into data-fetching query keys without triggering a
+   * refetch on every intermediate click.
+   */
+  onApply: (range: DateRangeValue) => void
   placeholder?: string
   disabled?: boolean
   className?: string
+  /**
+   * Forces the popover open on mount when `autoOpen` flips to true. Used by
+   * parents that want "select Personalizado → popover opens" UX without
+   * requiring a second click on the trigger.
+   */
+  autoOpen?: boolean
 }
 
 function formatTrigger(
@@ -34,62 +46,89 @@ function formatTrigger(
       { locale: ptBR },
     )}`
   }
-  if (value.from && !value.to) {
-    return `${format(value.from, 'dd MMM yyyy', { locale: ptBR })} – Selecione a data final`
-  }
   return placeholder
 }
 
 /**
  * Range date picker built on base-ui Popover + react-day-picker Calendar.
  *
- * Controlled component — the caller owns `value` and `onChange`. The
- * popover waits for the user to complete BOTH ends of the range before
- * auto-closing. react-day-picker v9 fires `onSelect` on every click:
- * the first click sets `{from: X, to: X}` and the second extends `to`.
- * We count clicks locally so a single-day range still requires two
- * intentional clicks instead of vanishing on the first one (F4).
+ * Two-stage commit model: calendar clicks update a local `draft` only.
+ * The parent's `onApply` fires exclusively when the user clicks Aplicar
+ * with both endpoints set. Cancel/close-without-apply discards the draft.
+ * This prevents the dashboard from refetching once per calendar click
+ * while the user is still mid-selection.
  */
 export function DateRangePicker({
   value,
-  onChange,
+  onApply,
   placeholder = 'Selecionar período',
   disabled = false,
   className,
+  autoOpen = false,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
-  const [pendingClicks, setPendingClicks] = useState(0)
+  const [draft, setDraft] = useState<DateRangeValue>(value)
+
+  // When the popover opens, seed the draft from the current applied value
+  // so reopening after a prior commit shows the last choice instead of a
+  // blank calendar. Also reset when parent updates `value` externally.
+  useEffect(() => {
+    if (open) setDraft(value)
+  }, [open, value])
+
+  // Auto-open handshake: parent flips `autoOpen` to true the moment the
+  // user picks "Personalizado" in the Select. One-shot — parent resets the
+  // flag after the popover closes.
+  useEffect(() => {
+    if (autoOpen) setOpen(true)
+  }, [autoOpen])
 
   const triggerLabel = formatTrigger(value, placeholder)
   const hasValue = value.from != null && value.to != null
 
-  const handleOpenChange = (next: boolean) => {
-    setOpen(next)
-    if (next) setPendingClicks(0)
-  }
-
   const handleSelect = (range: DateRange | undefined) => {
-    const next: DateRangeValue = {
+    setDraft({
       from: range?.from ?? null,
       to: range?.to ?? null,
-    }
-    onChange(next)
-    const clicks = pendingClicks + 1
-    setPendingClicks(clicks)
-    // Only close once the user has completed two intentional clicks AND
-    // the range has both endpoints resolved.
-    if (clicks >= 2 && next.from && next.to) {
-      setOpen(false)
-    }
+    })
   }
 
+  const canApply = draft.from != null && draft.to != null
+
+  const handleApply = () => {
+    if (!canApply) return
+    onApply({ from: draft.from, to: draft.to })
+    setOpen(false)
+  }
+
+  const handleCancel = () => {
+    setDraft(value)
+    setOpen(false)
+  }
+
+  const draftFooter = (() => {
+    if (draft.from && draft.to) {
+      const sameYear = draft.from.getFullYear() === draft.to.getFullYear()
+      const fromFmt = sameYear ? 'dd MMM' : 'dd MMM yyyy'
+      return `${format(draft.from, fromFmt, { locale: ptBR })} – ${format(
+        draft.to,
+        'dd MMM yyyy',
+        { locale: ptBR },
+      )}`
+    }
+    if (draft.from) {
+      return `${format(draft.from, 'dd MMM yyyy', { locale: ptBR })} – selecione a data final`
+    }
+    return 'Selecione a data inicial e a data final'
+  })()
+
   return (
-    <Popover.Root open={open} onOpenChange={handleOpenChange}>
+    <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
         disabled={disabled}
         aria-label="Selecionar período"
         className={cn(
-          'inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-2.5 text-sm font-medium transition-colors',
+          'inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium transition-colors',
           'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           'disabled:cursor-not-allowed disabled:opacity-50',
           !hasValue && 'text-muted-foreground',
@@ -111,12 +150,46 @@ export function DateRangePicker({
               mode="range"
               numberOfMonths={2}
               selected={{
-                from: value.from ?? undefined,
-                to: value.to ?? undefined,
+                from: draft.from ?? undefined,
+                to: draft.to ?? undefined,
               }}
               onSelect={handleSelect}
-              defaultMonth={value.from ?? undefined}
+              defaultMonth={draft.from ?? value.from ?? undefined}
             />
+            <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-3 py-2.5">
+              <span
+                className={cn(
+                  'text-xs font-medium',
+                  canApply ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {draftFooter}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className={cn(
+                    'inline-flex h-8 cursor-pointer items-center rounded-md border border-border bg-background px-3 text-xs font-medium transition-colors',
+                    'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  )}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={!canApply}
+                  className={cn(
+                    'inline-flex h-8 cursor-pointer items-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors',
+                    'hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    'disabled:cursor-not-allowed disabled:opacity-50',
+                  )}
+                >
+                  Aplicar
+                </button>
+              </div>
+            </div>
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>

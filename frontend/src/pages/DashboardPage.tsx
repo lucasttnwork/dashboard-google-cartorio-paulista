@@ -35,7 +35,7 @@ import {
   formatPercent,
   toTitleCase,
 } from '@/lib/format'
-import { pickGranularity } from '@/lib/period'
+import { isoDateLocal, parseLocalDate, pickGranularity } from '@/lib/period'
 import { CHART_COLORS } from '@/lib/chart-config'
 import { CustomTooltip as PremiumTooltip } from '@/components/charts/CustomTooltip'
 import {
@@ -77,13 +77,13 @@ const MONTHS_PT = [
   'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
 ] as const
 
-function formatMonth(isoDate: string): string {
-  const d = new Date(isoDate)
+function formatMonth(iso: string): string {
+  const d = parseLocalDate(iso) ?? new Date(iso)
   return `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`
 }
 
-function formatDay(isoDate: string): string {
-  const d = new Date(isoDate)
+function formatDay(iso: string): string {
+  const d = parseLocalDate(iso) ?? new Date(iso)
   const dd = String(d.getDate()).padStart(2, '0')
   return `${dd} ${MONTHS_PT[d.getMonth()]?.toLowerCase() ?? ''}`
 }
@@ -529,10 +529,14 @@ function CollaboratorsTable({
 // ---------------------------------------------------------------------------
 
 /**
- * Preset period options. "custom" triggers the DateRangePicker mode — its
- * label is derived from the range itself, not from this table.
+ * Preset period options. "custom" enters DateRangePicker mode but does
+ * NOT commit a new window until the user clicks Aplicar. "current-month"
+ * is the default landing preset — 1st of the current calendar month
+ * through today, recomputed on every render so the window slides forward
+ * naturally as the day changes.
  */
 const PERIOD_OPTIONS = [
+  { value: 'current-month', label: 'Mês atual' },
   { value: '2', label: 'Últimos 2 meses' },
   { value: '3', label: 'Últimos 3 meses' },
   { value: '6', label: 'Últimos 6 meses' },
@@ -542,12 +546,18 @@ const PERIOD_OPTIONS = [
 ] as const
 
 type PeriodValue = (typeof PERIOD_OPTIONS)[number]['value']
+type PresetValue = Exclude<PeriodValue, 'custom'>
 
 function presetToDates(
-  months: number,
+  preset: PresetValue,
 ): { date_from?: string; date_to?: string } {
-  if (months >= 60) return {}
   const now = new Date()
+  if (preset === 'current-month') {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1)
+    return { date_from: isoDateLocal(first), date_to: isoDateLocal(now) }
+  }
+  const months = Number(preset)
+  if (months >= 60) return {}
   // For the "Últimos 2 meses" preset we emit a fixed 60-day rolling window
   // so pickGranularity (threshold = 62 days) always resolves to daily. The
   // previous first-of-month formula could produce 59–92 days depending on
@@ -558,62 +568,92 @@ function presetToDates(
     months <= 2
       ? new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
       : new Date(now.getFullYear(), now.getMonth() - months, 1)
-  // Emit both endpoints so the backend can compute `previous_period`
-  // deltas for the preset window (requires both dt_from and dt_to).
-  return {
-    date_from: from.toISOString().slice(0, 10),
-    date_to: now.toISOString().slice(0, 10),
-  }
+  return { date_from: isoDateLocal(from), date_to: isoDateLocal(now) }
 }
 
-function rangeToDates(
-  range: DateRangeValue,
-): { date_from?: string; date_to?: string } {
-  if (!range.from || !range.to) return {}
-  return {
-    date_from: range.from.toISOString().slice(0, 10),
-    date_to: range.to.toISOString().slice(0, 10),
-  }
+/**
+ * Applied period — the source of truth for every data hook. Switching
+ * the Select dropdown to "Personalizado" does NOT mutate this; only an
+ * Aplicar click in the DateRangePicker does. That decoupling is what
+ * prevents "Personalizado" from firing a throwaway fetch with either
+ * no window or last-session's stale range.
+ */
+type AppliedPeriod =
+  | { kind: 'preset'; value: PresetValue }
+  | { kind: 'custom'; from: Date; to: Date }
+
+/**
+ * Derive a months-equivalent value for hooks that still take `months`
+ * instead of a date window. Returns undefined for custom + current-month
+ * so those modes rely exclusively on date_from/date_to.
+ */
+function appliedMonths(applied: AppliedPeriod): number | undefined {
+  if (applied.kind === 'custom') return undefined
+  if (applied.value === 'current-month') return undefined
+  return Number(applied.value)
 }
 
 export default function DashboardPage() {
-  // Period state: hybrid preset + custom range. Default is "Últimos 2 meses"
-  // so the landing page loads with daily-granularity charts.
-  const [periodValue, setPeriodValue] = useState<PeriodValue>('2')
-  const [customRange, setCustomRange] = useState<DateRangeValue>({
-    from: null,
-    to: null,
+  // Default landing view: current calendar month (1st → today). Sliding
+  // window so the dashboard always opens on "what happened this month".
+  const [applied, setApplied] = useState<AppliedPeriod>({
+    kind: 'preset',
+    value: 'current-month',
   })
+  // Dropdown UI state — may drift from `applied` while the user is in
+  // "Personalizado" mode but hasn't clicked Aplicar yet.
+  const [uiMode, setUiMode] = useState<PeriodValue>('current-month')
+  // Latch that pops the DateRangePicker open the moment the user picks
+  // "Personalizado" from the Select. Resets once the popover closes.
+  const [customAutoOpen, setCustomAutoOpen] = useState(false)
 
-  const isCustom = periodValue === 'custom'
-  const presetMonths = isCustom ? 12 : Number(periodValue)
-
-  // `dateParams` is the source of truth for the overview call. In custom
-  // mode we only emit params when both endpoints are set, so the query key
-  // stays stable while the user is mid-selection.
   const dateParams = useMemo(() => {
-    if (isCustom) return rangeToDates(customRange)
-    return presetToDates(presetMonths)
-  }, [isCustom, customRange, presetMonths])
+    if (applied.kind === 'custom') {
+      return { date_from: isoDateLocal(applied.from), date_to: isoDateLocal(applied.to) }
+    }
+    return presetToDates(applied.value)
+  }, [applied])
+
+  const monthsParam = appliedMonths(applied)
 
   const overview = useMetricsOverview({ ...dateParams, compare_previous: true })
   // AC-3.8.9/3.8.10 — trends and mentions cascade from the same date window
   // used by overview, so the chart and the "Top Mencionados" table always
   // reflect the selected period instead of the full history.
   const granularity = pickGranularity({
-    months: isCustom ? undefined : presetMonths,
+    months: monthsParam,
     dateFrom: dateParams.date_from,
     dateTo: dateParams.date_to,
   })
   const trends = useTrends({
     ...dateParams,
-    months: isCustom ? undefined : presetMonths,
+    months: monthsParam,
     granularity,
   })
   const mentions = useCollaboratorMentions({
     ...dateParams,
-    months: isCustom ? undefined : presetMonths,
+    months: monthsParam,
   })
+
+  const pickerValue: DateRangeValue =
+    applied.kind === 'custom'
+      ? { from: applied.from, to: applied.to }
+      : { from: null, to: null }
+
+  const handlePeriodChange = (next: PeriodValue) => {
+    setUiMode(next)
+    if (next === 'custom') {
+      setCustomAutoOpen(true)
+      return
+    }
+    setApplied({ kind: 'preset', value: next })
+  }
+
+  const handleRangeApply = (range: DateRangeValue) => {
+    if (!range.from || !range.to) return
+    setApplied({ kind: 'custom', from: range.from, to: range.to })
+    setCustomAutoOpen(false)
+  }
 
   // Error toast — fires once when overview fails
   useEffect(() => {
@@ -636,8 +676,7 @@ export default function DashboardPage() {
     .sort((a, b) => b.total_mentions - a.total_mentions)
 
   const periodLabel =
-    PERIOD_OPTIONS.find((o) => o.value === periodValue)?.label ??
-    'Últimos 2 meses'
+    PERIOD_OPTIONS.find((o) => o.value === uiMode)?.label ?? 'Mês atual'
 
   return (
     <div className="space-y-6">
@@ -651,8 +690,8 @@ export default function DashboardPage() {
         </div>
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <Select
-            value={periodValue}
-            onValueChange={(v) => setPeriodValue(v as PeriodValue)}
+            value={uiMode}
+            onValueChange={(v) => handlePeriodChange(v as PeriodValue)}
           >
             <SelectTrigger className="w-[200px]">
               <span>{periodLabel}</span>
@@ -665,10 +704,11 @@ export default function DashboardPage() {
               ))}
             </SelectContent>
           </Select>
-          {isCustom && (
+          {uiMode === 'custom' && (
             <DateRangePicker
-              value={customRange}
-              onChange={setCustomRange}
+              value={pickerValue}
+              onApply={handleRangeApply}
+              autoOpen={customAutoOpen}
               placeholder="Selecionar período"
             />
           )}

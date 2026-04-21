@@ -100,21 +100,18 @@ describe('AnalyticsPage', () => {
     expect(screen.getByText('Carla Oliveira')).toBeInTheDocument()
   })
 
-  it('renders period selection dropdown with "Últimos 2 meses" as default', () => {
+  it('renders period selection dropdown with "Mês atual" as default', () => {
     renderPage()
 
-    // shadcn Select renders a combobox trigger with the selected value
     const selectTrigger = screen.getByRole('combobox')
     expect(selectTrigger).toBeInTheDocument()
-    // FEAT-3.9-1: default is now "2" (Últimos 2 meses), no longer "12"
+    // Default now is `current-month` (1st of the calendar month → today).
     const hiddenInput = document.querySelector('input[aria-hidden="true"]') as HTMLInputElement
     expect(hiddenInput).toBeTruthy()
-    expect(hiddenInput.value).toBe('2')
+    expect(hiddenInput.value).toBe('current-month')
   })
 
-  // FEAT-3.9-1: switching away from the new 2-month default back to a
-  // 3-month preset emits ?months=3 and drops the daily-granularity state.
-  it('honours "Últimos 3 meses" selection after default (months=3)', async () => {
+  it('honours "Últimos 3 meses" selection (months=3 in URL)', async () => {
     const user = userEvent.setup()
     renderPage()
 
@@ -135,13 +132,12 @@ describe('AnalyticsPage', () => {
     })
   })
 
-  // BUG-3.9-1 regression: selecting "Personalizado" must actually enter
-  // custom mode and surface the DateRangePicker trigger. Prior code only
-  // deleted `months`, so `isCustom` (derived from `from`/`to`) stayed false
-  // and the combobox snapped back to "Últimos 12 meses".
-  it('flips to custom mode and reflects preset=custom in the URL', async () => {
+  // Picking "Personalizado" surfaces the DateRangePicker trigger but must
+  // NOT mutate the URL — the deferred-apply flow means a fetch only fires
+  // once the user clicks Aplicar inside the picker.
+  it('opens the DateRangePicker without touching the URL when "Personalizado" is chosen', async () => {
     const user = userEvent.setup()
-    renderPage()
+    renderPage('/analytics?months=3')
 
     await waitFor(() => {
       expect(screen.getByText('Análises')).toBeInTheDocument()
@@ -158,21 +154,19 @@ describe('AnalyticsPage', () => {
       await screen.findByRole('button', { name: 'Selecionar período' }),
     ).toBeInTheDocument()
 
-    // URL gains the explicit preset flag
-    await waitFor(() => {
-      expect(screen.getByTestId('location-search').textContent).toContain(
-        'preset=custom',
-      )
-    })
+    // URL unchanged — the previously-applied months=3 stays until Aplicar.
+    const search = screen.getByTestId('location-search').textContent ?? ''
+    expect(search).toContain('months=3')
+    expect(search).not.toContain('preset=custom')
+    expect(search).not.toContain('from=')
   })
 
-  // BUG-3.9-1 regression: when leaving custom mode back to a preset, the
-  // URL must drop the `preset=custom` flag so `isCustom` flips back to false.
-  it('clears preset=custom and sets months when switching away from custom', async () => {
+  // Leaving an applied custom window back to a preset clears from/to and
+  // writes months=6 so downstream hooks snap back onto the preset window.
+  it('clears from/to and sets months when switching away from an applied custom range', async () => {
     const user = userEvent.setup()
-    renderPage('/analytics?preset=custom')
+    renderPage('/analytics?from=2026-01-01&to=2026-01-31')
 
-    // Start with DateRangePicker visible
     await waitFor(() => {
       expect(
         screen.getByRole('button', { name: 'Selecionar período' }),
@@ -188,10 +182,10 @@ describe('AnalyticsPage', () => {
     await waitFor(() => {
       const search = screen.getByTestId('location-search').textContent ?? ''
       expect(search).toContain('months=6')
-      expect(search).not.toContain('preset=custom')
+      expect(search).not.toContain('from=')
+      expect(search).not.toContain('to=')
     })
 
-    // DateRangePicker disappears
     expect(
       screen.queryByRole('button', { name: 'Selecionar período' }),
     ).not.toBeInTheDocument()

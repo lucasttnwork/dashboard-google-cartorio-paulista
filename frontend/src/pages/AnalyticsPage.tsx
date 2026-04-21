@@ -47,7 +47,7 @@ import { CHART_COLORS } from '@/lib/chart-config'
 import { CustomTooltip as PremiumTooltip } from '@/components/charts/CustomTooltip'
 import { CollaboratorCompareChart } from '@/components/charts/CollaboratorCompareChart'
 import { cn } from '@/lib/utils'
-import { pickGranularity } from '@/lib/period'
+import { isoDateLocal, parseLocalDate, pickGranularity } from '@/lib/period'
 import type { TrendsGranularity } from '@/types/metrics'
 
 // ---------------------------------------------------------------------------
@@ -61,13 +61,13 @@ const MONTHS_PT = [
   'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
 ]
 
-function formatMonth(isoDate: string): string {
-  const d = new Date(isoDate)
+function formatMonth(iso: string): string {
+  const d = parseLocalDate(iso) ?? new Date(iso)
   return `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`
 }
 
-function formatDay(isoDate: string): string {
-  const d = new Date(isoDate)
+function formatDay(iso: string): string {
+  const d = parseLocalDate(iso) ?? new Date(iso)
   const dd = String(d.getDate()).padStart(2, '0')
   return `${dd} ${(MONTHS_PT[d.getMonth()] ?? '').toLowerCase()}`
 }
@@ -99,6 +99,7 @@ function formatDecimal(n: number | null, digits = 2): string {
 // ---------------------------------------------------------------------------
 
 const PERIOD_OPTIONS = [
+  { value: 'current-month', label: 'Mês atual' },
   { value: '2', label: 'Últimos 2 meses' },
   { value: '3', label: 'Últimos 3 meses' },
   { value: '6', label: 'Últimos 6 meses' },
@@ -112,6 +113,17 @@ type PeriodValue = (typeof PERIOD_OPTIONS)[number]['value']
 
 const VALID_PRESET_MONTHS = new Set(['2', '3', '6', '12', '24', '60'])
 const MAX_COMPARE = 4
+
+/**
+ * Derive the [first-of-month, today] window for the "Mês atual" preset.
+ * Recomputed on every render so the window slides forward naturally as
+ * the calendar day changes — no effect needed.
+ */
+function currentMonthDates(): { date_from: string; date_to: string } {
+  const now = new Date()
+  const first = new Date(now.getFullYear(), now.getMonth(), 1)
+  return { date_from: isoDateLocal(first), date_to: isoDateLocal(now) }
+}
 
 /**
  * Approximate a custom `[from, to]` range as an integer number of months
@@ -165,84 +177,106 @@ export default function AnalyticsPage() {
   const rawTo = searchParams.get('to')
   const rawPreset = searchParams.get('preset')
 
-  // `preset=custom` is the explicit URL flag the Select uses to enter custom
-  // mode before the user has picked any date. Without it, clicking "Personalizado"
-  // would be a no-op (from/to absent → isCustom false → combobox snaps back).
-  const isCustom =
-    rawPreset === 'custom' || (rawFrom != null && rawTo != null)
-  const periodValue: PeriodValue = isCustom
-    ? 'custom'
-    : rawMonths && VALID_PRESET_MONTHS.has(rawMonths)
-      ? (rawMonths as PeriodValue)
-      : '2'
-
-  const customRange: DateRangeValue = useMemo(() => {
-    if (!isCustom) return { from: null, to: null }
-    const from = rawFrom ? new Date(rawFrom) : null
-    const to = rawTo ? new Date(rawTo) : null
-    return {
-      from: from && !Number.isNaN(from.getTime()) ? from : null,
-      to: to && !Number.isNaN(to.getTime()) ? to : null,
-    }
-  }, [isCustom, rawFrom, rawTo])
-
   /**
-   * Effective `months` value fed into `useTrends` / `useCollaboratorMentions`.
-   * Preset mode: the literal number. Custom mode: approximate the range in
-   * months (or fall back to 12 while the user is still picking a second date).
+   * Applied period derived from the URL — the only thing that drives data
+   * hooks. Default is `current-month` (1st of the calendar month → today)
+   * so the landing view always opens on "what happened this month".
+   *
+   * Note: custom mode requires both `from` and `to` in the URL. Clicking
+   * "Personalizado" in the dropdown no longer writes `preset=custom` on
+   * its own; the URL only flips to custom once the user clicks Aplicar.
    */
-  const effectiveMonths: number = useMemo(() => {
-    if (isCustom) {
-      if (customRange.from && customRange.to) {
-        return rangeToMonths(customRange.from, customRange.to)
-      }
-      return 12
+  const appliedMode: PeriodValue = useMemo(() => {
+    if (rawFrom && rawTo) return 'custom'
+    if (rawPreset === 'current-month') return 'current-month'
+    if (rawMonths && VALID_PRESET_MONTHS.has(rawMonths)) {
+      return rawMonths as PeriodValue
     }
-    return Number(periodValue)
-  }, [isCustom, customRange, periodValue])
+    return 'current-month'
+  }, [rawFrom, rawTo, rawPreset, rawMonths])
+
+  const appliedRange: DateRangeValue = useMemo(() => {
+    if (appliedMode !== 'custom') return { from: null, to: null }
+    return {
+      from: rawFrom ? parseLocalDate(rawFrom) : null,
+      to: rawTo ? parseLocalDate(rawTo) : null,
+    }
+  }, [appliedMode, rawFrom, rawTo])
 
   /**
-   * Absolute date window used by both hooks. In custom mode we only emit
-   * date_from/date_to once the user has picked both endpoints — otherwise
-   * the query key would flip twice in a row and trigger an extra fetch.
-   * AC-3.8.9 / AC-3.8.13: the collaborator chart, compare chart, and the
-   * trend chart all read from the same window.
+   * UI dropdown may drift from the URL while the user is in "Personalizado"
+   * mode but hasn't clicked Aplicar yet — that's the whole point of the
+   * deferred-apply flow. Initial value mirrors the URL-derived state.
+   */
+  const [uiMode, setUiMode] = useState<PeriodValue>(appliedMode)
+  const [customAutoOpen, setCustomAutoOpen] = useState(false)
+
+  /**
+   * Absolute date window used by both hooks. Computed from the APPLIED URL
+   * state — never from the dropdown override — so switching the Select to
+   * "Personalizado" without applying a range leaves the window untouched.
    */
   const dateParams: { date_from?: string; date_to?: string } = useMemo(() => {
-    if (!isCustom) return {}
-    if (!customRange.from || !customRange.to) return {}
-    return {
-      date_from: customRange.from.toISOString().slice(0, 10),
-      date_to: customRange.to.toISOString().slice(0, 10),
+    if (appliedMode === 'custom') {
+      if (!appliedRange.from || !appliedRange.to) return {}
+      return {
+        date_from: isoDateLocal(appliedRange.from),
+        date_to: isoDateLocal(appliedRange.to),
+      }
     }
-  }, [isCustom, customRange])
+    if (appliedMode === 'current-month') return currentMonthDates()
+    return {}
+  }, [appliedMode, appliedRange])
+
+  /**
+   * Effective `months` param for hooks that still accept months-only.
+   * Custom + current-month pass undefined and rely on date_from/date_to.
+   */
+  const effectiveMonths: number | undefined = useMemo(() => {
+    if (appliedMode === 'custom') {
+      if (appliedRange.from && appliedRange.to) {
+        return rangeToMonths(appliedRange.from, appliedRange.to)
+      }
+      return undefined
+    }
+    if (appliedMode === 'current-month') return undefined
+    return Number(appliedMode)
+  }, [appliedMode, appliedRange])
 
   const granularity: TrendsGranularity = useMemo(
     () =>
       pickGranularity({
-        months: isCustom ? undefined : Number(periodValue),
+        months:
+          appliedMode === 'custom' || appliedMode === 'current-month'
+            ? undefined
+            : Number(appliedMode),
         dateFrom: dateParams.date_from,
         dateTo: dateParams.date_to,
       }),
-    [isCustom, periodValue, dateParams.date_from, dateParams.date_to],
+    [appliedMode, dateParams.date_from, dateParams.date_to],
   )
 
   const handlePeriodChange = useCallback(
     (next: PeriodValue) => {
+      setUiMode(next)
+      if (next === 'custom') {
+        // Pop the picker open. Do NOT mutate the URL — the applied window
+        // only flips once the user clicks Aplicar.
+        setCustomAutoOpen(true)
+        return
+      }
       startTransition(() => {
         setSearchParams(
           (prev) => {
             const p = new URLSearchParams(prev)
-            if (next === 'custom') {
+            p.delete('from')
+            p.delete('to')
+            if (next === 'current-month') {
               p.delete('months')
-              p.set('preset', 'custom')
-              // `from`/`to` stay blank until the user picks a range; the hook
-              // falls back to the 12-month approximation meanwhile.
+              p.set('preset', 'current-month')
             } else {
-              p.set('months', next)
-              p.delete('from')
-              p.delete('to')
               p.delete('preset')
+              p.set('months', next)
             }
             return p
           },
@@ -253,20 +287,18 @@ export default function AnalyticsPage() {
     [setSearchParams],
   )
 
-  const handleRangeChange = useCallback(
+  const handleRangeApply = useCallback(
     (range: DateRangeValue) => {
+      if (!range.from || !range.to) return
+      setCustomAutoOpen(false)
       startTransition(() => {
         setSearchParams(
           (prev) => {
             const p = new URLSearchParams(prev)
             p.delete('months')
-            if (range.from && range.to) {
-              p.set('from', range.from.toISOString().slice(0, 10))
-              p.set('to', range.to.toISOString().slice(0, 10))
-            } else {
-              p.delete('from')
-              p.delete('to')
-            }
+            p.delete('preset')
+            p.set('from', isoDateLocal(range.from as Date))
+            p.set('to', isoDateLocal(range.to as Date))
             return p
           },
           { replace: true },
@@ -321,13 +353,13 @@ export default function AnalyticsPage() {
   // -----------------------------------------------------------------------
 
   const trends = useTrends({
-    months: isCustom ? undefined : effectiveMonths,
+    months: effectiveMonths,
     date_from: dateParams.date_from,
     date_to: dateParams.date_to,
     granularity,
   })
   const collaborators = useCollaboratorMentions({
-    months: isCustom ? undefined : effectiveMonths,
+    months: effectiveMonths,
     include_inactive: includeInactive,
     date_from: dateParams.date_from,
     date_to: dateParams.date_to,
@@ -354,10 +386,10 @@ export default function AnalyticsPage() {
   }, [collaborators.data, selectedIds])
 
   const periodLabel =
-    periodValue === 'custom'
-      ? 'Personalizado'
-      : (PERIOD_OPTIONS.find((o) => o.value === periodValue)?.label ??
-        'Últimos 2 meses')
+    PERIOD_OPTIONS.find((o) => o.value === uiMode)?.label ?? 'Mês atual'
+
+  const pickerValue: DateRangeValue =
+    appliedMode === 'custom' ? appliedRange : { from: null, to: null }
 
   const showCompareChart = selectedCollaborators.length >= 2
 
@@ -376,7 +408,7 @@ export default function AnalyticsPage() {
 
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <Select
-            value={periodValue}
+            value={uiMode}
             onValueChange={(v) => handlePeriodChange(v as PeriodValue)}
           >
             <SelectTrigger className="w-[200px]">
@@ -390,10 +422,11 @@ export default function AnalyticsPage() {
               ))}
             </SelectContent>
           </Select>
-          {isCustom && (
+          {uiMode === 'custom' && (
             <DateRangePicker
-              value={customRange}
-              onChange={handleRangeChange}
+              value={pickerValue}
+              onApply={handleRangeApply}
+              autoOpen={customAutoOpen}
               placeholder="Selecionar período"
             />
           )}

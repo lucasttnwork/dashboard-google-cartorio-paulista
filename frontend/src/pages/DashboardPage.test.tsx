@@ -73,26 +73,22 @@ describe('DashboardPage', () => {
   it('renders trend chart area', async () => {
     renderPage()
 
-    // Default is now "Últimos 2 meses" which resolves to daily granularity,
-    // so the first chart card title is "Avaliações por Dia".
+    // Default is now "Mês atual" (≤31 days) → daily granularity, so the
+    // first chart card title is "Avaliações por Dia".
     await waitFor(() => {
       expect(screen.getByText('Avaliações por Dia')).toBeInTheDocument()
     })
     expect(screen.getByText('Evolução da Nota Média')).toBeInTheDocument()
   })
 
-  // FEAT-3.9-1: Dashboard loads with "Últimos 2 meses" as the default preset
-  // and renders the daily-granularity chart instead of monthly.
-  it('defaults to "Últimos 2 meses" with daily chart', async () => {
+  // Dashboard opens on "Mês atual" (1st of current month → today) with
+  // daily-granularity chart. Sliding window, no configuration required.
+  it('defaults to "Mês atual" with daily chart', async () => {
     renderPage()
 
-    // Combobox trigger reflects the new default label
     await waitFor(() => {
-      expect(screen.getByText('Últimos 2 meses')).toBeInTheDocument()
+      expect(screen.getByText('Mês atual')).toBeInTheDocument()
     })
-    // Daily chart title (not "por Mês") confirms pickGranularity landed on
-    // 'day'. The chart only appears after trends data resolves, so we need
-    // findByText to wait for the skeleton to swap for the actual card.
     expect(
       await screen.findByText('Avaliações por Dia'),
     ).toBeInTheDocument()
