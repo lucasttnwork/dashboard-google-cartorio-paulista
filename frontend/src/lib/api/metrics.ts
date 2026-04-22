@@ -53,8 +53,8 @@ export async function fetchMyPerformance(): Promise<MyPerformance> {
 }
 
 export async function fetchSystemUsers(): Promise<SystemUser[]> {
-  const { data } = await apiClient.get<SystemUser[]>('/api/v1/collaborators/admin/users')
-  return data
+  const { data } = await apiClient.get<{ items: SystemUser[] }>('/api/v1/admin/users/')
+  return data.items
 }
 
 /**

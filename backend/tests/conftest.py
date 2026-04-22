@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS collaborators (
     department TEXT,
     position  TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
+    user_id   TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -66,6 +67,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
     actor_email  TEXT NOT NULL,
     diff         TEXT NOT NULL DEFAULT '{}',
     created_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id     TEXT PRIMARY KEY,
+    role        TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    disabled_at TEXT
 );
 """
 
@@ -132,20 +141,27 @@ def _patch_models_for_sqlite():
 
     from app.db.models.collaborator import Collaborator, ReviewCollaborator
     from app.db.models.audit_log import AuditLog
+    from app.db.models.user_profile import UserProfile
 
     # --- Strip schema="public" so SQLite sees bare table names ---
-    for model in (Collaborator, ReviewCollaborator, AuditLog):
+    for model in (Collaborator, ReviewCollaborator, AuditLog, UserProfile):
         model.__table__.schema = None
 
     # --- Replace Pg-specific column types ---
     # Collaborator.aliases: ARRAY(Text) -> JSONList
     Collaborator.__table__.c.aliases.type = JSONList()
 
+    # Collaborator.user_id: PgUUID -> UUIDStr
+    Collaborator.__table__.c.user_id.type = UUIDStr()
+
     # AuditLog.diff: JSONB -> JSONDict
     AuditLog.__table__.c.diff.type = JSONDict()
 
     # AuditLog.actor_id: PgUUID -> UUIDStr
     AuditLog.__table__.c.actor_id.type = UUIDStr()
+
+    # UserProfile.user_id: PgUUID -> UUIDStr
+    UserProfile.__table__.c.user_id.type = UUIDStr()
 
 
 _patch_models_for_sqlite()

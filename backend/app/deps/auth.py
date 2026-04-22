@@ -51,6 +51,7 @@ class AuthenticatedUser:
     role: Role
     created_at: datetime
     disabled_at: datetime | None
+    must_change_password: bool = False
 
     @property
     def is_active(self) -> bool:
@@ -237,12 +238,14 @@ async def get_current_user(
         logger.info("auth.profile_disabled", sub=str(claims.sub))
         raise HTTPException(status_code=403, detail="forbidden")
 
+    must_change = bool(claims.app_metadata.get("must_change_password", False))
     user = AuthenticatedUser(
         id=profile.user_id,
         email=claims.email or "",
         role=profile.role,  # type: ignore[arg-type]
         created_at=profile.created_at,
         disabled_at=profile.disabled_at,
+        must_change_password=must_change,
     )
     request.state.authenticated_user = user
     return user

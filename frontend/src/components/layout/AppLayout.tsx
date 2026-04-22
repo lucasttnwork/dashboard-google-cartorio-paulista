@@ -1,14 +1,16 @@
 import { useState, useCallback } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   MessageSquare,
   BarChart3,
   UserCircle,
   Users,
+  KeyRound,
   FileUp,
   Activity,
   LogOut,
+  Lock,
   Menu,
   X,
 } from 'lucide-react'
@@ -30,6 +32,7 @@ const navItems = [
 
 const adminItems = [
   { to: '/admin/collaborators', label: 'Colaboradores', icon: Users },
+  { to: '/admin/users', label: 'Usuários', icon: KeyRound, roles: ['admin'] as string[] },
   { to: '/admin/dataset-upload', label: 'Importar Dados', icon: FileUp, roles: ['admin'] as string[] },
   { to: '/admin/collection-health', label: 'Saúde da Coleta', icon: Activity, roles: ['admin'] as string[] },
 ] as const
@@ -160,6 +163,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-2 text-muted-foreground"
+          onClick={() => {
+            if (onNavigate) onNavigate()
+            navigate('/account/password')
+          }}
+        >
+          <Lock className="size-4" />
+          Alterar senha
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 text-muted-foreground"
           onClick={handleLogout}
         >
           <LogOut className="size-4" />
@@ -172,8 +187,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const user = useAuthStore((s) => s.user)
+  const location = useLocation()
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+
+  // Force-change guard: when the account flag is set, block every route
+  // except the password change page itself.
+  if (
+    user?.must_change_password === true &&
+    location.pathname !== '/account/password'
+  ) {
+    return <Navigate to="/account/password" replace />
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

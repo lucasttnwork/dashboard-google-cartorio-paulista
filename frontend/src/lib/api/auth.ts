@@ -17,6 +17,7 @@ interface MeResponse {
   role: string
   created_at: string
   app_metadata: Record<string, unknown>
+  must_change_password?: boolean
 }
 
 export const authApi = {
@@ -31,6 +32,7 @@ export const authApi = {
       email: r.data.email,
       role: r.data.role,
       created_at: r.data.created_at,
+      must_change_password: r.data.must_change_password ?? false,
     })),
 
   forgot: (email: string) =>
@@ -38,4 +40,10 @@ export const authApi = {
 
   reset: (accessToken: string, password: string) =>
     apiClient.post('/api/v1/auth/reset', { access_token: accessToken, password }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiClient.post('/api/v1/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
 }

@@ -24,3 +24,16 @@ export const resetSchema = z
   })
 
 export type ResetForm = z.infer<typeof resetSchema>
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Senha atual obrigatoria'),
+    newPassword: z.string().min(8, 'Minimo 8 caracteres'),
+    confirmPassword: z.string().min(1, 'Confirme a senha'),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'As senhas nao coincidem',
+    path: ['confirmPassword'],
+  })
+
+export type ChangePasswordForm = z.infer<typeof changePasswordSchema>

@@ -40,7 +40,9 @@ from app.deps.auth import (
     set_session_cookies,
 )
 from app.deps.db import get_session
+from app.db.models.audit_log import AuditLog
 from app.schemas.auth import (
+    ChangePasswordRequest,
     ForgotRequest,
     LoginRequest,
     LoginResponse,
@@ -206,7 +208,90 @@ async def me(
         role=user.role,
         created_at=user.created_at,
         app_metadata={},
+        must_change_password=user.must_change_password,
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /change-password
+# ---------------------------------------------------------------------------
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    supabase: Annotated[SupabaseAuthClient, Depends(get_supabase_auth)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Change the authenticated user's password in-session.
+
+    Flow:
+    1. Re-verify current password via ``sign_in_with_password`` (tokens discarded).
+    2. Call admin PUT ``/admin/users/{id}`` with new password + flip
+       ``app_metadata.must_change_password`` off.
+    3. Refresh session so the rotated cookies carry the updated JWT claims
+       (namely the cleared ``must_change_password`` flag).
+    4. Audit log (never logs the password).
+    """
+    # Step 1: verify current password (401 from upstream -> 400 invalid_current).
+    try:
+        await supabase.sign_in_with_password(user.email, body.current_password)
+    except SupabaseAuthError as exc:
+        if exc.status_code == 401:
+            raise HTTPException(
+                status_code=400, detail="invalid_current_password"
+            ) from exc
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    # Step 2: admin-update password + clear the force-change flag atomically.
+    try:
+        await supabase.admin_update_user_password(
+            user.id,
+            body.new_password,
+            app_metadata={"must_change_password": False},
+        )
+    except SupabaseAuthError as exc:
+        if exc.status_code == 400 and exc.message == "weak_password":
+            raise HTTPException(status_code=400, detail="weak_password") from exc
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    # Step 3: rotate session tokens so the new JWT reflects the cleared flag.
+    # The refresh cookie is scoped to /api/v1/auth/refresh and not sent here,
+    # so instead we sign in again with the new password to mint a fresh pair
+    # of tokens whose JWT claims carry the updated ``app_metadata``.
+    # Best-effort — if this fails (e.g. transient upstream error) the password
+    # change is still persisted; the user will pick up new claims after their
+    # next refresh or re-login.
+    resp = Response(status_code=status.HTTP_204_NO_CONTENT)
+    try:
+        tokens = await supabase.sign_in_with_password(user.email, body.new_password)
+        set_session_cookies(resp, tokens)
+    except SupabaseAuthError as exc:
+        logger.warning(
+            "auth.change_password.reauth_failed", reason=exc.message
+        )
+
+    # Step 4: audit (password never logged).
+    session.add(
+        AuditLog(
+            entity_type="user",
+            entity_id=0,
+            action="update",
+            actor_id=user.id,
+            actor_email=user.email,
+            diff={
+                "target_user_id": str(user.id),
+                "password_changed": True,
+            },
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    await session.commit()
+
+    logger.info("auth.change_password.success", user_id=str(user.id))
+    return resp
 
 
 # ---------------------------------------------------------------------------

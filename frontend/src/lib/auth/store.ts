@@ -5,6 +5,7 @@ export interface User {
   email: string
   role: string
   created_at: string
+  must_change_password?: boolean
 }
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'

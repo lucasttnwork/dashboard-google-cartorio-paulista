@@ -286,6 +286,53 @@ class SupabaseAuthClient:
         await self._raise_for_status(response, action="admin_create_user")
         return SupabaseUser.model_validate(response.json())
 
+    async def admin_update_user_password(
+        self,
+        user_id: UUID | str,
+        new_password: str,
+        *,
+        app_metadata: dict[str, Any] | None = None,
+    ) -> SupabaseUser:
+        """Update a user's password (and optionally merge ``app_metadata``).
+
+        PUT ``/admin/users/{id}`` with ``{"password": ..., "app_metadata": ...}``.
+        Uses only the ``apikey`` header with the secret key — no
+        ``Authorization`` header.
+
+        The caller is responsible for passing the fully-merged
+        ``app_metadata`` dict; Supabase merges (not replaces) this field
+        on the admin PUT, but passing only the keys we want to flip is
+        the safe pattern documented by gotrue.
+        """
+        url = f"{self._base_url}/admin/users/{user_id}"
+        payload: dict[str, Any] = {"password": new_password}
+        if app_metadata is not None:
+            payload["app_metadata"] = app_metadata
+
+        response = await self._http.put(
+            url,
+            json=payload,
+            headers=self._headers(),
+        )
+        await self._raise_for_status(response, action="admin_update_user_password")
+        return SupabaseUser.model_validate(response.json())
+
+    async def admin_delete_user(self, user_id: UUID | str) -> None:
+        """Delete a user via the admin API.
+
+        Irreversible. Uses only the ``apikey`` header with the secret key.
+        Cascade on ``auth.users.id`` removes dependent ``public.user_profiles``
+        rows; ``public.collaborators.user_id`` is set to NULL by the FK.
+
+        Upstream 404 is tolerated (already gone) — any other error is raised.
+        """
+        url = f"{self._base_url}/admin/users/{user_id}"
+        response = await self._http.delete(url, headers=self._headers())
+        if response.status_code == 404:
+            logger.info("supabase_auth.admin_delete_user.not_found", user_id=str(user_id))
+            return
+        await self._raise_for_status(response, action="admin_delete_user")
+
     async def admin_get_user_by_email(self, email: str) -> SupabaseUser | None:
         """Fetch a user by email via the admin list endpoint.
 

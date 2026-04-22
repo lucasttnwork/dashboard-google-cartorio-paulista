@@ -26,6 +26,11 @@ class ResetRequest(BaseModel):
     password: str = Field(min_length=8)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8)
+
+
 class UserOut(BaseModel):
     id: UUID
     email: str
@@ -44,3 +49,4 @@ class MeResponse(BaseModel):
     role: str
     created_at: datetime
     app_metadata: dict[str, Any] = Field(default_factory=dict)
+    must_change_password: bool = False

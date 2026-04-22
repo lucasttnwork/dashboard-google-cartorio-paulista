@@ -39,8 +39,11 @@ export default function LoginPage() {
   async function onSubmit(data: LoginForm) {
     setSubmitting(true)
     try {
-      const result = await authApi.login(data)
-      setUser(result.user)
+      await authApi.login(data)
+      // Fetch /me to populate must_change_password and any other derived fields
+      // that the /login response does not surface.
+      const me = await authApi.me()
+      setUser(me)
       setStatus('authenticated')
       navigate(from, { replace: true })
     } catch (err) {

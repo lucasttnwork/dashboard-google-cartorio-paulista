@@ -102,6 +102,10 @@ class _FakeSupabase:
         self.sign_out_raises: Exception | None = None
         self.recover_raises: Exception | None = None
         self.update_password_result: SupabaseUser | Exception = _make_supabase_user()
+        self.admin_update_password_result: SupabaseUser | Exception = (
+            _make_supabase_user()
+        )
+        self.calls.setdefault("admin_update_password", [])
 
     async def sign_in_with_password(self, email: str, password: str) -> TokenResponse:
         self.calls["sign_in"].append((email, password))
@@ -132,6 +136,20 @@ class _FakeSupabase:
         if isinstance(self.update_password_result, Exception):
             raise self.update_password_result
         return self.update_password_result
+
+    async def admin_update_user_password(
+        self,
+        user_id: Any,
+        new_password: str,
+        *,
+        app_metadata: dict[str, Any] | None = None,
+    ) -> SupabaseUser:
+        self.calls["admin_update_password"].append(
+            (str(user_id), new_password, app_metadata)
+        )
+        if isinstance(self.admin_update_password_result, Exception):
+            raise self.admin_update_password_result
+        return self.admin_update_password_result
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +260,22 @@ async def raw_engine():
                     role TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     disabled_at TEXT
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entity_type  TEXT NOT NULL,
+                    entity_id    INTEGER NOT NULL,
+                    action       TEXT NOT NULL,
+                    actor_id     TEXT NOT NULL,
+                    actor_email  TEXT NOT NULL,
+                    diff         TEXT NOT NULL DEFAULT '{}',
+                    created_at   TEXT NOT NULL
                 )
                 """
             )
@@ -741,3 +775,147 @@ async def test_debug_admin_only_blocks_viewer() -> None:
 
     assert resp.status_code == 403
     assert resp.json()["detail"] == "forbidden"
+
+
+# ---------------------------------------------------------------------------
+# Change-password tests
+# ---------------------------------------------------------------------------
+
+
+def _change_password_app(
+    *,
+    supabase: _FakeSupabase,
+    db_session: AsyncSession,
+    user: AuthenticatedUser | None = None,
+) -> FastAPI:
+    """Build an app with a real AsyncSession wired for change-password."""
+    test_app = FastAPI()
+    test_app.include_router(auth_module.router, prefix="/api/v1/auth")
+    test_app.dependency_overrides[get_supabase_auth] = lambda: supabase
+
+    async def _session_dep() -> Any:  # type: ignore[return]
+        yield db_session
+
+    test_app.dependency_overrides[get_session] = _session_dep
+
+    if user is None:
+        user = _make_authenticated_user(role="viewer")
+    _user = user
+
+    async def _user_dep() -> AuthenticatedUser:
+        return _user
+
+    test_app.dependency_overrides[get_current_user] = _user_dep
+    return test_app
+
+
+@pytest.mark.asyncio
+async def test_change_password_happy_path(db_session: AsyncSession) -> None:
+    sb = _FakeSupabase()
+    app = _change_password_app(supabase=sb, db_session=db_session)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/auth/change-password",
+            json={"current_password": "old-secret", "new_password": "NewStrong123!"},
+        )
+
+    assert resp.status_code == 204
+    # Two sign_in calls: verify current pwd, then re-auth with new pwd to
+    # mint a fresh JWT whose app_metadata carries the cleared flag.
+    assert sb.calls["sign_in"] == [
+        (_EMAIL, "old-secret"),
+        (_EMAIL, "NewStrong123!"),
+    ]
+    assert len(sb.calls["admin_update_password"]) == 1
+    call = sb.calls["admin_update_password"][0]
+    assert call[0] == str(_USER_ID)
+    assert call[1] == "NewStrong123!"
+    assert call[2] == {"must_change_password": False}
+
+    # Fresh session cookies must be set on 204 response.
+    set_cookies = _set_cookie_values(resp)
+    combined = " ".join(set_cookies)
+    assert "sb_access" in combined
+    assert "sb_refresh" in combined
+
+    # Audit row written — password not present in diff.
+    row = (
+        await db_session.execute(
+            text("SELECT action, actor_id, diff FROM audit_log")
+        )
+    ).fetchone()
+    assert row is not None
+    assert row[0] == "update"
+    assert "NewStrong123!" not in (row[2] or "")
+    assert "password_changed" in (row[2] or "")
+
+
+@pytest.mark.asyncio
+async def test_change_password_wrong_current(db_session: AsyncSession) -> None:
+    sb = _FakeSupabase()
+    sb.sign_in_result = SupabaseAuthError(
+        status_code=401, message="invalid_credentials"
+    )
+    app = _change_password_app(supabase=sb, db_session=db_session)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/auth/change-password",
+            json={"current_password": "bad", "new_password": "NewStrong123!"},
+        )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "invalid_current_password"
+    assert not sb.calls["admin_update_password"]
+
+
+@pytest.mark.asyncio
+async def test_change_password_weak_new(db_session: AsyncSession) -> None:
+    sb = _FakeSupabase()
+    sb.admin_update_password_result = SupabaseAuthError(
+        status_code=400, message="weak_password"
+    )
+    app = _change_password_app(supabase=sb, db_session=db_session)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/auth/change-password",
+            json={"current_password": "old-secret", "new_password": "weakpass"},
+        )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "weak_password"
+
+
+@pytest.mark.asyncio
+async def test_change_password_unauthenticated(db_session: AsyncSession) -> None:
+    from fastapi import HTTPException
+
+    sb = _FakeSupabase()
+    test_app = FastAPI()
+    test_app.include_router(auth_module.router, prefix="/api/v1/auth")
+    test_app.dependency_overrides[get_supabase_auth] = lambda: sb
+
+    async def _session_dep() -> Any:  # type: ignore[return]
+        yield db_session
+
+    test_app.dependency_overrides[get_session] = _session_dep
+
+    async def _fail_user() -> AuthenticatedUser:
+        raise HTTPException(status_code=401, detail="not_authenticated")
+
+    test_app.dependency_overrides[get_current_user] = _fail_user
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/auth/change-password",
+            json={"current_password": "x", "new_password": "NewStrong123!"},
+        )
+
+    assert resp.status_code == 401
+    assert not sb.calls["sign_in"]

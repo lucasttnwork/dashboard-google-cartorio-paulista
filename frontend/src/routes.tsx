@@ -21,6 +21,8 @@ const CollaboratorProfilePage = lazy(
   () => import('./pages/CollaboratorProfilePage'),
 )
 const CollaboratorsPage = lazy(() => import('./pages/admin/CollaboratorsPage'))
+const UsersPage = lazy(() => import('./pages/admin/UsersPage'))
+const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage'))
 const DatasetUploadPage = lazy(() => import('./pages/admin/DatasetUploadPage'))
 const CollectionHealthPage = lazy(
   () => import('./pages/admin/CollectionHealthPage'),
@@ -90,6 +92,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/account/password',
+        element: (
+          <LazyPage>
+            <ChangePasswordPage />
+          </LazyPage>
+        ),
+      },
+      {
         path: '/collaborators/:id',
         element: (
           <LazyPage>
@@ -103,6 +113,16 @@ export const router = createBrowserRouter([
           <RequireRole allowed={['admin', 'manager']}>
             <LazyPage>
               <CollaboratorsPage />
+            </LazyPage>
+          </RequireRole>
+        ),
+      },
+      {
+        path: '/admin/users',
+        element: (
+          <RequireRole allowed={['admin']}>
+            <LazyPage>
+              <UsersPage />
             </LazyPage>
           </RequireRole>
         ),
