@@ -28,6 +28,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
+import {
   fetchAdminUsers,
   updateAdminUser,
   deleteAdminUser,
@@ -36,7 +42,6 @@ import { UserFormDialog } from '@/components/users/UserFormDialog'
 import { TempPasswordModal } from '@/components/users/TempPasswordModal'
 import { useAuthStore } from '@/lib/auth/store'
 import type { AdminUser, AdminUserCreateResponse, Role } from '@/types/admin-user'
-import { useRef, useEffect } from 'react'
 
 const ROLE_LABEL: Record<Role, string> = {
   admin: 'Administrador',
@@ -57,73 +62,46 @@ function RowActions({
   onToggleActive: (u: AdminUser) => void
   onDelete: (u: AdminUser) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-      >
-        <MoreHorizontal className="h-4 w-4" />
-        <span className="sr-only">Ações</span>
-      </button>
-      {open && (
-        <div className="absolute right-0 z-50 min-w-40 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
           <button
             type="button"
-            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent"
-            onClick={() => {
-              onEdit(user)
-              setOpen(false)
-            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
-            <Pencil className="mr-2 h-4 w-4" /> Editar
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Ações</span>
           </button>
-          <button
-            type="button"
-            disabled={isSelf}
-            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => {
-              onToggleActive(user)
-              setOpen(false)
-            }}
-          >
-            {user.is_active ? (
-              <>
-                <PowerOff className="mr-2 h-4 w-4" /> Desativar
-              </>
-            ) : (
-              <>
-                <Power className="mr-2 h-4 w-4" /> Reativar
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            disabled={isSelf}
-            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => {
-              onDelete(user)
-              setOpen(false)
-            }}
-          >
-            <Trash2 className="mr-2 h-4 w-4" /> Excluir
-          </button>
-        </div>
-      )}
-    </div>
+        }
+      />
+      <DropdownMenuContent align="end" className="min-w-40">
+        <DropdownMenuItem onClick={() => onEdit(user)}>
+          <Pencil className="mr-2 h-4 w-4" /> Editar
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={isSelf}
+          onClick={() => onToggleActive(user)}
+        >
+          {user.is_active ? (
+            <>
+              <PowerOff className="mr-2 h-4 w-4" /> Desativar
+            </>
+          ) : (
+            <>
+              <Power className="mr-2 h-4 w-4" /> Reativar
+            </>
+          )}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={isSelf}
+          variant="destructive"
+          onClick={() => onDelete(user)}
+        >
+          <Trash2 className="mr-2 h-4 w-4" /> Excluir
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

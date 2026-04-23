@@ -23,6 +23,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import { CollaboratorFormDialog } from '@/components/collaborators/CollaboratorFormDialog'
 import { MergeDialog } from '@/components/collaborators/MergeDialog'
 import {
@@ -37,64 +43,40 @@ import { toTitleCase, formatNumber } from '@/lib/format'
 
 const MAX_VISIBLE_ALIASES = 3
 
-/** Lightweight row actions — replaces heavy base-ui MenuPrimitive (~50 hooks per instance) */
 function RowActions({ collaborator: c, onEdit, onDeactivate, onReactivate }: {
   collaborator: Collaborator
   onEdit: (c: Collaborator) => void
   onDeactivate: (id: number) => void
   onReactivate: (id: number) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center justify-center rounded-md h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-      >
-        <MoreHorizontal className="h-4 w-4" />
-        <span className="sr-only">Ações</span>
-      </button>
-      {open && (
-        <div className="absolute right-0 z-50 min-w-32 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 animate-in fade-in-0 zoom-in-95">
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
           <button
             type="button"
-            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent hover:text-accent-foreground"
-            onClick={() => { onEdit(c); setOpen(false) }}
+            className="inline-flex items-center justify-center rounded-md h-8 w-8 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
-            <Pencil className="mr-2 h-4 w-4" /> Editar
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Ações</span>
           </button>
-          {c.is_active ? (
-            <button
-              type="button"
-              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent hover:text-accent-foreground"
-              onClick={() => { onDeactivate(c.id); setOpen(false) }}
-            >
-              <Power className="mr-2 h-4 w-4" /> Desativar
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent hover:text-accent-foreground"
-              onClick={() => { onReactivate(c.id); setOpen(false) }}
-            >
-              <Power className="mr-2 h-4 w-4" /> Reativar
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+        }
+      />
+      <DropdownMenuContent align="end" className="min-w-32">
+        <DropdownMenuItem onClick={() => onEdit(c)}>
+          <Pencil className="mr-2 h-4 w-4" /> Editar
+        </DropdownMenuItem>
+        {c.is_active ? (
+          <DropdownMenuItem onClick={() => onDeactivate(c.id)}>
+            <Power className="mr-2 h-4 w-4" /> Desativar
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={() => onReactivate(c.id)}>
+            <Power className="mr-2 h-4 w-4" /> Reativar
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
