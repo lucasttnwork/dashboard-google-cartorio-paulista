@@ -60,8 +60,8 @@ def log(event: str, **fields: Any) -> None:
     print(json.dumps(record, default=str), flush=True)
 
 
-def die(msg: str, **fields: Any) -> "None":
-    log("fatal", message=msg, **fields)
+def die(event: str, **fields: Any) -> "None":
+    log(event, **fields)
     sys.exit(1)
 
 

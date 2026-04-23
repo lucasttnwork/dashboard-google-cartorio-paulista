@@ -31,7 +31,13 @@ Redis is a Railway addon in the same project (private network only).
    line of defense if `targetPort` drifts.
 3. **`railway.json` declares `healthcheckPath`** so Railway gates traffic
    routing on the app actually being ready. No more races during rolling
-   deploys.
+   deploys. **Exception — backend:** uvicorn binds to `::` (IPv6) so the
+   frontend nginx upstream can resolve `backend.railway.internal` via AAAA.
+   Railway's platform healthcheck probe cannot reach that socket (observed
+   2026-04-23: 4 consecutive deploys FAILED on `HEALTHCHECK failure` at
+   ~54s). Backend relies on the Docker `HEALTHCHECK` directive
+   (`curl localhost:8000/health`) instead. Keep `healthcheckPath` on
+   frontend (nginx IPv4) and workers (aiohttp IPv4).
 4. **Never delete + recreate a public domain.** It allocates a new hostname,
    which breaks: CORS origins in the backend, `VITE_API_BASE_URL` baked into
    the frontend bundle, and Supabase Auth redirect URLs. If you truly must
@@ -75,7 +81,8 @@ Decision matrix. Walk top-down; first match is the cause.
 | `x-railway-fallback: true` in response headers                               | Edge does not know which port to proxy             | Run `scripts/railway-ensure-target-ports.sh`. Verify `targetPort` via GraphQL query.               |
 | Container logs show no inbound requests but `Application startup complete`   | Same as above — edge never reached the container   | Same as above.                                                                                     |
 | Container logs show crash loops / `HEALTHCHECK` failing                      | App bug or missing env var                         | Check `railway logs --service backend`. Fix code or env. Redeploy.                                 |
-| Container healthy, `/health` 200 from inside, external 502 intermittent      | Rolling deploy race without healthcheckPath        | Ensure `deploy.healthcheckPath` is set in `railway.json`. Redeploy.                                |
+| Container healthy, `/health` 200 from inside, external 502 intermittent      | Rolling deploy race without healthcheckPath        | Ensure `deploy.healthcheckPath` is set in `railway.json` (frontend/workers only — backend binds IPv6, see invariant 3). |
+| Backend deploy stuck FAILED with `HEALTHCHECK failure` payload               | Platform healthcheck can't reach uvicorn on `::`   | Remove `healthcheckPath` from `backend/railway.json`. Docker `HEALTHCHECK` directive still gates container health.      |
 | External 404 on `/api/...` but `/` works on frontend                         | Nginx proxy misconfigured                          | Check `frontend/nginx.conf` `proxy_pass ${BACKEND_URL}` + `BACKEND_URL` env on frontend container. |
 | `CORS error` in browser console                                              | Backend `CORS_ORIGINS` missing the frontend URL    | Update backend env `CORS_ORIGINS` in Railway. Redeploy backend.                                    |
 | `x-railway-fallback: true` + `targetPort` already correct                    | Edge cache or platform incident                    | Check https://status.railway.com. Wait 2-5 min. If persists, open support ticket.                  |
