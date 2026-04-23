@@ -7,8 +7,12 @@ name: prod-smoke
 # the push even lands.
 #
 # Required repository vars (not secrets — these are public URLs):
-#   BACKEND_URL   e.g. https://backend-production-04ffb.up.railway.app
-#   FRONTEND_URL  e.g. https://frontend-production-3749.up.railway.app
+#   FRONTEND_URL  e.g. https://frontend-production-28f58.up.railway.app
+#
+# Backend has NO public domain (private-only, reached through frontend nginx
+# proxy at /api/*). Smoke probes frontend root + /api/v1/health to exercise the
+# full edge → nginx → backend private path in one shot.
+#
 # Configure at: Repo Settings -> Secrets and variables -> Actions -> Variables.
 
 on:
@@ -31,20 +35,20 @@ jobs:
     name: Prod currently healthy?
     runs-on: ubuntu-latest
     steps:
-      - name: Probe backend /health before new deploy rolls
+      - name: Probe /api/v1/health before new deploy rolls
         env:
-          BACKEND_URL: ${{ vars.BACKEND_URL }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${BACKEND_URL:-}" ]; then
-            echo "::warning::BACKEND_URL repo variable not set; skipping pre-gate. Configure at Repo Settings -> Variables."
+          if [ -z "${FRONTEND_URL:-}" ]; then
+            echo "::warning::FRONTEND_URL repo variable not set; skipping pre-gate. Configure at Repo Settings -> Variables."
             exit 0
           fi
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/health" || echo "000")
-          echo "pre-deploy /health = $code"
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_URL/api/v1/health" || echo "000")
+          echo "pre-deploy /api/v1/health = $code"
           if [ "$code" != "200" ]; then
-            echo "::warning::Prod backend returned $code BEFORE this deploy. This run will still probe post-deploy to confirm the new deploy resolves it."
+            echo "::warning::Prod returned $code BEFORE this deploy. This run will still probe post-deploy to confirm the new deploy resolves it."
           fi
 
   post-deploy:
@@ -61,41 +65,30 @@ jobs:
           echo "Sleeping ${WAIT_SECONDS}s to let Railway pick up the push..."
           sleep "$WAIT_SECONDS"
 
-      - name: Probe backend /health until 200 (5 min budget)
+      - name: Probe /api/v1/health until 200 (5 min budget)
         env:
-          BACKEND_URL: ${{ vars.BACKEND_URL }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${BACKEND_URL:-}" ]; then
-            echo "::error::BACKEND_URL repo variable is required for post-deploy probe."
+          if [ -z "${FRONTEND_URL:-}" ]; then
+            echo "::error::FRONTEND_URL repo variable is required for post-deploy probe."
             exit 1
           fi
           deadline=$(( $(date +%s) + 300 ))
           attempt=0
           while [ "$(date +%s)" -lt "$deadline" ]; do
             attempt=$((attempt + 1))
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/health" || echo "000")
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_URL/api/v1/health" || echo "000")
             echo "attempt=$attempt code=$code"
             if [ "$code" = "200" ]; then
-              echo "Backend healthy."
-              exit 0
+              echo "Backend (via frontend proxy) healthy."
+              break
             fi
             sleep 10
           done
-          echo "::error::Backend /health never returned 200 within 5 minutes (last=$code)."
-          exit 1
-
-      - name: Probe backend /api/v1/health
-        env:
-          BACKEND_URL: ${{ vars.BACKEND_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/api/v1/health" || echo "000")
-          echo "/api/v1/health = $code"
           if [ "$code" != "200" ]; then
-            echo "::error::Versioned health endpoint not reachable ($code)."
+            echo "::error::/api/v1/health never returned 200 within 5 minutes (last=$code)."
             exit 1
           fi
 
@@ -105,10 +98,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${FRONTEND_URL:-}" ]; then
-            echo "::warning::FRONTEND_URL repo variable not set; skipping frontend probe."
-            exit 0
-          fi
           code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_URL/" || echo "000")
           echo "frontend / = $code"
           if [ "$code" != "200" ]; then
