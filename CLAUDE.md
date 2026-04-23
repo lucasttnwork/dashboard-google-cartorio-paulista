@@ -55,6 +55,13 @@ Serviços locais:
 - Workers: http://localhost:9000/health
 - Redis: localhost:6379
 
+## Produção (Railway)
+
+- Runbook operacional em `docs/deploy-railway.md` — leitura obrigatória antes de diagnosticar 502, rotacionar tokens, ou tocar em `railway.json`/domínios.
+- Invariante crítica: todo serviceDomain público tem `targetPort` declarado (backend=8000, frontend=80). Drift causa 502 `x-railway-fallback: true`.
+- Fix idempotente: `bash scripts/railway-ensure-target-ports.sh [--dry-run]` com `RAILWAY_TOKEN` (Project Access Token).
+- Smoke test pós-deploy: `.github/workflows/prod-smoke.yml` bloqueia regressão.
+
 ## Metodologia
 
 Spec-Driven Development (SDD) + CRISPY. Instruction budget < 40 por prompt. Artefatos estáticos em markdown como memória compartilhada. Human-in-the-loop nos gates marcados com 🧍 nas tasks.
