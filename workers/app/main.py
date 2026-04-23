@@ -15,6 +15,7 @@ from app.settings import settings
 from app.tasks.collect_reviews import collect_reviews
 from app.tasks.example import example_task
 from app.tasks.analyze_review import analyze_review, analyze_reviews_batch
+from app.tasks.backfill_sentiment import backfill_sentiment
 from app.tasks.reprocess_mentions import reprocess_collaborator_mentions
 
 logger = structlog.get_logger(__name__)
@@ -48,6 +49,7 @@ class WorkerSettings:
         collect_reviews,
         analyze_review,
         analyze_reviews_batch,
+        backfill_sentiment,
     ]
     cron_jobs = cron_jobs
     on_startup = on_startup

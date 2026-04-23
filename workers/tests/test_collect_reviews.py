@@ -227,3 +227,92 @@ async def test_window_never_below_default():
     # Last run 0.5h ago — still use default 3h floor
     pool = _pool_with_last_run(0)
     assert await _compute_window_hours(pool, 3) == 3
+
+
+# --- Backfill mode tests ---
+
+
+@pytest.mark.asyncio
+async def test_backfill_returns_batch_id_and_skips_degraded(ctx):
+    """window_hours_override bypasses degraded check + emits batch_id."""
+    redis_mock = AsyncMock()
+    redis_mock.get = AsyncMock(return_value=b"1")  # degraded — should be ignored
+    ctx["redis"] = redis_mock
+
+    actor_mock = AsyncMock()
+    actor_mock.call = AsyncMock(return_value={
+        "status": "SUCCEEDED",
+        "defaultDatasetId": "ds_backfill",
+    })
+    dataset_mock = AsyncMock()
+    list_page_mock = MagicMock()
+    list_page_mock.items = []
+    dataset_mock.list_items = AsyncMock(return_value=list_page_mock)
+    apify_mock = AsyncMock()
+    apify_mock.actor = MagicMock(return_value=actor_mock)
+    apify_mock.dataset = MagicMock(return_value=dataset_mock)
+    ctx["apify_client"] = apify_mock
+
+    with patch("app.tasks.collect_reviews.settings") as mock_settings:
+        mock_settings.collection_enabled = True
+        mock_settings.google_place_url = "https://maps.google.com/place/test"
+        mock_settings.collection_window_hours = 3
+        mock_settings.location_id = "test-loc"
+
+        result = await collect_reviews(
+            ctx, window_hours_override=720, source_label="backfill"
+        )
+
+    assert result["status"] == "completed"
+    assert "batch_id" in result
+    actor_call_kwargs = actor_mock.call.await_args.kwargs
+    # 720h → 30 days, must be sent as "days" unit
+    assert actor_call_kwargs["run_input"]["reviewsStartDate"] == "30 days"
+
+
+@pytest.mark.asyncio
+async def test_collect_writes_batch_id_into_upsert(ctx):
+    """Confirm collection_batch_id flows into the INSERT bind args."""
+    list_page_mock = MagicMock()
+    list_page_mock.items = [{"reviewId": "r1", "stars": 5, "text": "x"}]
+    dataset_mock = AsyncMock()
+    dataset_mock.list_items = AsyncMock(return_value=list_page_mock)
+    actor_mock = AsyncMock()
+    actor_mock.call = AsyncMock(return_value={
+        "status": "SUCCEEDED",
+        "defaultDatasetId": "ds_x",
+    })
+    apify_mock = AsyncMock()
+    apify_mock.actor = MagicMock(return_value=actor_mock)
+    apify_mock.dataset = MagicMock(return_value=dataset_mock)
+    ctx["apify_client"] = apify_mock
+
+    conn_mock = AsyncMock()
+    conn_mock.fetchrow = AsyncMock(side_effect=[
+        None,                # _compute_window_hours
+        {"is_new": True},    # upsert
+        {"id": 1},           # _record_run
+    ])
+    conn_mock.fetch = AsyncMock(return_value=[])  # _check_degraded
+    pool_mock = AsyncMock()
+    pool_mock.acquire = MagicMock(return_value=_async_ctx(conn_mock))
+    ctx["db_pool"] = pool_mock
+
+    with patch("app.tasks.collect_reviews.settings") as mock_settings:
+        mock_settings.collection_enabled = True
+        mock_settings.google_place_url = "https://maps.google.com/place/test"
+        mock_settings.collection_window_hours = 3
+        mock_settings.location_id = "test-loc"
+
+        result = await collect_reviews(ctx)
+
+    assert result["new"] == 1
+    bind_args = [
+        call.args for call in conn_mock.fetchrow.await_args_list
+        if call.args and "INSERT INTO reviews" in str(call.args[0])
+    ]
+    assert bind_args, "no INSERT call captured"
+    last_two = bind_args[0][-2:]  # collection_source_label, batch_id
+    assert last_two[0] == "auto"
+    assert isinstance(last_two[1], str) and len(last_two[1]) == 36
+    assert last_two[1] == result["batch_id"]

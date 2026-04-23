@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from uuid import uuid4
 
 import structlog
 
@@ -13,6 +14,8 @@ logger = structlog.get_logger(__name__)
 ACTOR_ID = "compass/Google-Maps-Reviews-Scraper"
 POLL_INTERVAL = 10
 ACTOR_TIMEOUT = 300
+
+BACKFILL_WINDOW_CAP_HOURS = 24 * 90
 
 
 async def _check_degraded(pool, redis) -> bool:
@@ -81,8 +84,21 @@ async def _compute_window_hours(pool, default_hours: int) -> int:
     return max(default_hours, min(hours, 168))
 
 
-async def collect_reviews(ctx: dict) -> dict:
-    """Collect reviews from Apify and upsert into DB."""
+async def collect_reviews(
+    ctx: dict,
+    *,
+    window_hours_override: int | None = None,
+    source_label: str = "scheduled",
+    max_reviews: int = 500,
+) -> dict:
+    """Collect reviews from Apify and upsert into DB.
+
+    Optional kwargs (used by manual/backfill enqueues):
+    - window_hours_override: bypass the auto-computed window. Skips degraded
+      check. Capped at BACKFILL_WINDOW_CAP_HOURS.
+    - source_label: stored on collection_runs.run_type ('scheduled' | 'manual' | 'backfill').
+    - max_reviews: ceiling for Apify scrape size (raise for backfills).
+    """
     if not settings.collection_enabled:
         logger.info("collect.disabled")
         return {"status": "disabled"}
@@ -91,24 +107,41 @@ async def collect_reviews(ctx: dict) -> dict:
     redis = ctx.get("redis")
     apify_client = ctx.get("apify_client")
     started_at = datetime.now(timezone.utc)
+    batch_id = str(uuid4())
+    is_backfill = window_hours_override is not None
 
-    if await _check_degraded(pool, redis):
+    if not is_backfill and await _check_degraded(pool, redis):
         return {"status": "degraded"}
 
     if not apify_client:
         logger.error("collect.no_apify_client")
         return {"status": "error", "reason": "no_apify_client"}
 
-    window_hours = await _compute_window_hours(pool, settings.collection_window_hours)
-    logger.info("collect.window", hours=window_hours)
+    if is_backfill:
+        window_hours = max(1, min(int(window_hours_override), BACKFILL_WINDOW_CAP_HOURS))
+    else:
+        window_hours = await _compute_window_hours(pool, settings.collection_window_hours)
+    logger.info(
+        "collect.window",
+        hours=window_hours,
+        batch_id=batch_id,
+        source=source_label,
+        backfill=is_backfill,
+    )
+
+    if window_hours > 24:
+        days = (window_hours + 23) // 24
+        reviews_start = f"{days} days"
+    else:
+        reviews_start = f"{window_hours} hours"
 
     run_input = {
         "startUrls": [{"url": settings.google_place_url}],
         "reviewsSort": "newest",
-        "reviewsStartDate": f"{window_hours} hours",
+        "reviewsStartDate": reviews_start,
         "language": "pt-BR",
         "personalData": True,
-        "maxReviews": 500,
+        "maxReviews": max_reviews,
     }
 
     actor_run = None
@@ -127,7 +160,7 @@ async def collect_reviews(ctx: dict) -> dict:
             else:
                 logger.error("collect.actor_call_failed", error=str(exc))
                 await _record_run(
-                    pool, source="scheduled", status="failed",
+                    pool, source=source_label, status="failed",
                     started_at=started_at,
                     completed_at=datetime.now(timezone.utc),
                     error_message=str(exc),
@@ -140,7 +173,7 @@ async def collect_reviews(ctx: dict) -> dict:
     run_status = actor_run.get("status")
     if run_status == "FAILED":
         await _record_run(
-            pool, source="scheduled", status="failed",
+            pool, source=source_label, status="failed",
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
             error_message="actor_failed",
@@ -149,7 +182,7 @@ async def collect_reviews(ctx: dict) -> dict:
 
     if run_status == "TIMED-OUT":
         await _record_run(
-            pool, source="scheduled", status="failed",
+            pool, source=source_label, status="failed",
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
             error_message="actor_timeout",
@@ -167,11 +200,11 @@ async def collect_reviews(ctx: dict) -> dict:
 
     if not items:
         await _record_run(
-            pool, source="scheduled", status="completed",
+            pool, source=source_label, status="completed",
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
         )
-        return {"status": "completed", "new": 0, "skipped": 0}
+        return {"status": "completed", "new": 0, "skipped": 0, "batch_id": batch_id}
 
     transformed = []
     for raw in items:
@@ -184,6 +217,8 @@ async def collect_reviews(ctx: dict) -> dict:
     skipped_count = 0
     new_review_ids: list[str] = []
 
+    collection_source_label = "manual" if is_backfill else "auto"
+
     if pool and transformed:
         async with pool.acquire() as conn:
             for review in transformed:
@@ -193,16 +228,20 @@ async def collect_reviews(ctx: dict) -> dict:
                         reviewer_id, reviewer_url, review_url, is_local_guide,
                         reviewer_photo_url, original_language, translated_text,
                         create_time, response_text, response_time,
-                        last_seen_at, source, collection_source)
+                        last_seen_at, last_checked_at, source,
+                        collection_source, collection_batch_id)
                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
                                $13,$14,$15,
-                               now(),$16,'auto')
+                               now(), now(), $16,
+                               $17, $18)
                        ON CONFLICT (review_id) DO UPDATE SET
                            comment = EXCLUDED.comment,
                            rating = EXCLUDED.rating,
                            response_text = EXCLUDED.response_text,
                            response_time = EXCLUDED.response_time,
-                           last_seen_at = now()
+                           last_seen_at = now(),
+                           last_checked_at = now(),
+                           collection_batch_id = EXCLUDED.collection_batch_id
                        RETURNING (xmax = 0) AS is_new""",
                     review["review_id"], review["location_id"],
                     review["rating"], review["comment"],
@@ -212,6 +251,7 @@ async def collect_reviews(ctx: dict) -> dict:
                     review["original_language"], review["translated_text"],
                     review["create_time"], review["response_text"],
                     review["response_time"], review["source"],
+                    collection_source_label, batch_id,
                 )
                 if result and result["is_new"]:
                     new_count += 1
@@ -221,16 +261,33 @@ async def collect_reviews(ctx: dict) -> dict:
 
     completed_at = datetime.now(timezone.utc)
     await _record_run(
-        pool, source="scheduled", status="completed",
+        pool, source=source_label, status="completed",
         reviews_new=new_count, reviews_skipped=skipped_count,
         started_at=started_at, completed_at=completed_at,
     )
 
     redis = ctx.get("redis")
-    if redis and new_review_ids:
+    enqueue_ids: list[str] = list(new_review_ids)
+    if is_backfill and pool:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT review_id FROM reviews
+                   WHERE collection_batch_id = $1
+                     AND sentiment IS NULL
+                     AND comment IS NOT NULL AND comment <> ''""",
+                batch_id,
+            )
+        seen = set(enqueue_ids)
+        for row in rows:
+            rid = row["review_id"]
+            if rid not in seen:
+                enqueue_ids.append(rid)
+                seen.add(rid)
+
+    if redis and enqueue_ids:
         batch_size = max(1, settings.nlp_batch_size)
-        for start in range(0, len(new_review_ids), batch_size):
-            batch = new_review_ids[start:start + batch_size]
+        for start in range(0, len(enqueue_ids), batch_size):
+            batch = enqueue_ids[start:start + batch_size]
             try:
                 await redis.enqueue_job("analyze_reviews_batch", review_ids=batch)
             except Exception as exc:
@@ -243,5 +300,12 @@ async def collect_reviews(ctx: dict) -> dict:
     logger.info(
         "collect.completed",
         new=new_count, skipped=skipped_count, total_items=len(items),
+        batch_id=batch_id, nlp_enqueued=len(enqueue_ids),
     )
-    return {"status": "completed", "new": new_count, "skipped": skipped_count}
+    return {
+        "status": "completed",
+        "new": new_count,
+        "skipped": skipped_count,
+        "batch_id": batch_id,
+        "nlp_enqueued": len(enqueue_ids),
+    }
