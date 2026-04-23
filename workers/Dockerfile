@@ -20,9 +20,11 @@ RUN uv pip install --system -e .
 
 EXPOSE 9000
 
+# health_port is driven by HEALTH_PORT env (pydantic-settings maps the field
+# automatically). Keep HEALTHCHECK in sync so a future override stays aligned.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
-  CMD curl -fsS http://localhost:9000/health || exit 1
+  CMD curl -fsS "http://localhost:${HEALTH_PORT:-9000}/health" || exit 1
 
 # Single entry point runs both the aiohttp health server and the arq worker
 # in the same asyncio event loop. See workers/app/main.py.
-CMD ["python", "-m", "app.main"]
+CMD ["sh", "-c", "exec python -m app.main"]

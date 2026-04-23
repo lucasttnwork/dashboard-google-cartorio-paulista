@@ -26,6 +26,9 @@ EXPOSE 8000
 
 # start-period gives uvicorn time to finish imports before the first probe.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
-  CMD curl -fsS http://localhost:8000/health || exit 1
+  CMD curl -fsS "http://localhost:${PORT:-8000}/health" || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "::", "--port", "8000"]
+# Shell form with exec preserves PID 1 for signal handling while letting
+# Railway's injected $PORT override the default. If PORT is unset (local
+# docker, tests) we fall back to 8000 — matching EXPOSE + compose wiring.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host :: --port ${PORT:-8000}"]
