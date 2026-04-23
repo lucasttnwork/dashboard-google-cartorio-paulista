@@ -1,0 +1,117 @@
+name: prod-smoke
+
+# Post-deploy health probe. Railway auto-deploys on push to main via its GitHub
+# integration; this workflow runs in parallel, waits for the deploy to roll, and
+# fails loudly if /health does not return 200. Also exposes a manual trigger for
+# ad-hoc checks and a "pre-gate" job that flags if prod is already broken before
+# the push even lands.
+#
+# Required repository vars (not secrets — these are public URLs):
+#   BACKEND_URL   e.g. https://backend-production-04ffb.up.railway.app
+#   FRONTEND_URL  e.g. https://frontend-production-3749.up.railway.app
+# Configure at: Repo Settings -> Secrets and variables -> Actions -> Variables.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy_wait_seconds:
+        description: "Seconds to wait before post-deploy probe (0 to skip wait)"
+        required: false
+        default: "90"
+
+concurrency:
+  group: prod-smoke
+  cancel-in-progress: false
+
+jobs:
+  pre-gate:
+    name: Prod currently healthy?
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe backend /health before new deploy rolls
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKEND_URL:-}" ]; then
+            echo "::warning::BACKEND_URL repo variable not set; skipping pre-gate. Configure at Repo Settings -> Variables."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/health" || echo "000")
+          echo "pre-deploy /health = $code"
+          if [ "$code" != "200" ]; then
+            echo "::warning::Prod backend returned $code BEFORE this deploy. This run will still probe post-deploy to confirm the new deploy resolves it."
+          fi
+
+  post-deploy:
+    name: Backend + frontend reachable after deploy
+    needs: pre-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Railway to roll deploy
+        env:
+          WAIT_SECONDS: ${{ github.event.inputs.deploy_wait_seconds || '90' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Sleeping ${WAIT_SECONDS}s to let Railway pick up the push..."
+          sleep "$WAIT_SECONDS"
+
+      - name: Probe backend /health until 200 (5 min budget)
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKEND_URL:-}" ]; then
+            echo "::error::BACKEND_URL repo variable is required for post-deploy probe."
+            exit 1
+          fi
+          deadline=$(( $(date +%s) + 300 ))
+          attempt=0
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            attempt=$((attempt + 1))
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/health" || echo "000")
+            echo "attempt=$attempt code=$code"
+            if [ "$code" = "200" ]; then
+              echo "Backend healthy."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Backend /health never returned 200 within 5 minutes (last=$code)."
+          exit 1
+
+      - name: Probe backend /api/v1/health
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BACKEND_URL/api/v1/health" || echo "000")
+          echo "/api/v1/health = $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::Versioned health endpoint not reachable ($code)."
+            exit 1
+          fi
+
+      - name: Probe frontend root
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FRONTEND_URL:-}" ]; then
+            echo "::warning::FRONTEND_URL repo variable not set; skipping frontend probe."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_URL/" || echo "000")
+          echo "frontend / = $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::Frontend root not reachable ($code)."
+            exit 1
+          fi
