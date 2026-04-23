@@ -34,10 +34,31 @@ logger = structlog.get_logger(__name__)
 
 
 def _parse_date(value: str | None) -> datetime | None:
-    """Parse an ISO date string (YYYY-MM-DD) to a timezone-aware datetime."""
+    """Parse an ISO date string (YYYY-MM-DD) to UTC midnight.
+
+    Used as the lower bound of a window — paired with `>=` SQL comparison.
+    """
     if value is None:
         return None
     return datetime.combine(date.fromisoformat(value), datetime.min.time(), tzinfo=timezone.utc)
+
+
+def _parse_date_to_exclusive(value: str | None) -> datetime | None:
+    """Parse an ISO date string (YYYY-MM-DD) to UTC midnight of the NEXT day.
+
+    Used as the upper bound of a window — paired with `<` (exclusive) SQL
+    comparison so the entire UTC day named by `value` is included. Without
+    this, `Review.create_time <= midnight` excludes every review of that day
+    except those stamped at exactly 00:00:00 UTC, which silently hides today's
+    reviews while the cron is still scraping them.
+    """
+    if value is None:
+        return None
+    return datetime.combine(
+        date.fromisoformat(value) + timedelta(days=1),
+        datetime.min.time(),
+        tzinfo=timezone.utc,
+    )
 
 
 def _round2(value: float | None) -> float | None:
@@ -95,7 +116,7 @@ async def _aggregate_overview_window(
     if dt_from is not None:
         stmt = stmt.where(Review.create_time >= dt_from)
     if dt_to is not None:
-        stmt = stmt.where(Review.create_time <= dt_to)
+        stmt = stmt.where(Review.create_time < dt_to)
 
     row = (await session.execute(stmt)).one()
     total = row.total or 0
@@ -109,7 +130,7 @@ async def _aggregate_overview_window(
         if dt_from is not None:
             mentions_stmt = mentions_stmt.where(Review.create_time >= dt_from)
         if dt_to is not None:
-            mentions_stmt = mentions_stmt.where(Review.create_time <= dt_to)
+            mentions_stmt = mentions_stmt.where(Review.create_time < dt_to)
     total_mentions = (await session.execute(mentions_stmt)).scalar() or 0
 
     five_star_pct = round((row.five_star / total) * 100, 2) if total > 0 else 0.0
@@ -167,7 +188,7 @@ async def get_overview(
     ``previous_period``. Missing either boundary yields ``previous_period=None``.
     """
     dt_from = _parse_date(date_from)
-    dt_to = _parse_date(date_to)
+    dt_to = _parse_date_to_exclusive(date_to)
 
     primary = await _aggregate_overview_window(
         session, dt_from=dt_from, dt_to=dt_to
@@ -252,12 +273,12 @@ async def get_trends(
 
     if use_range:
         dt_from = _parse_date(date_from)
-        dt_to = _parse_date(date_to)
+        dt_to = _parse_date_to_exclusive(date_to)
         if dt_from is not None:
             where_parts.append("r.create_time >= :dt_from")
             params["dt_from"] = dt_from
         if dt_to is not None:
-            where_parts.append("r.create_time <= :dt_to")
+            where_parts.append("r.create_time < :dt_to")
             params["dt_to"] = dt_to
     else:
         where_parts.append(
@@ -336,7 +357,7 @@ async def get_collaborator_mentions(
     """
     use_range = date_from is not None or date_to is not None
     dt_from = _parse_date(date_from) if use_range else None
-    dt_to = _parse_date(date_to) if use_range else None
+    dt_to = _parse_date_to_exclusive(date_to) if use_range else None
 
     # --- Aggregated totals per collaborator ----------------------------
     totals_stmt = (
@@ -356,7 +377,7 @@ async def get_collaborator_mentions(
         if dt_from is not None:
             totals_stmt = totals_stmt.where(Review.create_time >= dt_from)
         if dt_to is not None:
-            totals_stmt = totals_stmt.where(Review.create_time <= dt_to)
+            totals_stmt = totals_stmt.where(Review.create_time < dt_to)
     else:
         cutoff = text("current_date - interval '1 month' * :months")
         totals_stmt = totals_stmt.where(Review.create_time >= cutoff)
@@ -390,7 +411,7 @@ async def get_collaborator_mentions(
         if dt_from is not None:
             monthly_stmt = monthly_stmt.where(Review.create_time >= dt_from)
         if dt_to is not None:
-            monthly_stmt = monthly_stmt.where(Review.create_time <= dt_to)
+            monthly_stmt = monthly_stmt.where(Review.create_time < dt_to)
     else:
         cutoff = text("current_date - interval '1 month' * :months")
         monthly_stmt = monthly_stmt.where(Review.create_time >= cutoff)

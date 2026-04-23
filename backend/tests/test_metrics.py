@@ -441,6 +441,35 @@ class TestOverviewWithData:
         assert body["total_reviews"] == 1
         assert body["avg_rating"] == 3.0
 
+    async def test_overview_date_to_includes_full_day(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """`date_to=YYYY-MM-DD` must include reviews stamped any time of that
+        UTC day. Prior bug parsed the upper bound as midnight UTC of the
+        same day and used `<=`, silently dropping every review of the
+        requested terminal day except those at exactly 00:00:00 UTC — which
+        in practice meant "today's collected reviews never showed up on the
+        dashboard while the cron was still scraping them".
+        """
+        # A review on the terminal day, several hours into UTC.
+        await _insert_review(
+            db_session,
+            "rev-eod",
+            rating=5,
+            create_time="2026-04-23T18:30:00+00:00",
+        )
+        await db_session.commit()
+
+        resp = await client.get(
+            "/api/v1/metrics/overview?date_from=2026-04-01&date_to=2026-04-23"
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total_reviews"] == 1, (
+            "review stamped 2026-04-23T18:30 UTC must be inside the "
+            "date_to=2026-04-23 window"
+        )
+
 
 # ===========================================================================
 # 2. Monthly Trends  (/api/v1/metrics/trends)
@@ -671,8 +700,10 @@ class TestOverviewComparePrevious:
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
         """Window math: previous = [dt_from - duration, dt_from)."""
-        # Primary window: 2026-04-01 .. 2026-06-30 (≈ 90 days).
-        # Expected previous window: 2026-01-01 .. 2026-04-01.
+        # Primary window: 2026-04-01 .. 2026-06-30 inclusive = 91 days
+        # (date_to is treated as the full UTC day, so dt_to becomes the
+        # exclusive bound 2026-07-01T00:00 UTC). Equal-duration previous
+        # window therefore starts 91 days before 2026-04-01 = 2025-12-31.
         await _insert_review(
             db_session, "prev-1", rating=4, create_time="2026-02-10T10:00:00+00:00"
         )
@@ -698,8 +729,8 @@ class TestOverviewComparePrevious:
         body = resp.json()
         assert body["previous_period"] is not None
         prev = body["previous_period"]
-        # Duration = 90 days; previous_from = 2026-04-01 - 90d = 2026-01-01
-        assert prev["period_start"].startswith("2026-01-01")
+        # Duration = 91 days; previous_from = 2026-04-01 - 91d = 2025-12-31
+        assert prev["period_start"].startswith("2025-12-31")
         assert prev["period_end"].startswith("2026-04-01")
         # Only prev-1 and prev-2 fall inside the previous window
         assert prev["total_reviews"] == 2
